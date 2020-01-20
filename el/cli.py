@@ -134,6 +134,16 @@ def count_semtypes(_run):
       log.info(s)
 
 
+@ex.command
+def generate_clef_mentions():
+  clef.dump_mentions()
+
+
+@ex.command
+def generate_medmention_mentions():
+  medmentions.dump_mentions()
+
+
 @ex.automain
 def main():
   pass

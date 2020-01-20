@@ -44,11 +44,13 @@ class Span:
 
 
 class Concept:
-  def __init__(self, spans: List[Span], types: List[str], cui: str, candidates: List[UmlsCandidate] = None):
+  def __init__(self, spans: List[Span], types: List[str], cui: str, candidates: List[UmlsCandidate] = None,
+               embedding_idx: int = None):
     self.spans = spans
     self.types = types
     self.cui = cui
     self.candidates = candidates
+    self.embedding_idx = embedding_idx
 
   def to_brat(self, eid, rid=None):
     note = self.cui + '--' + ','.join(self.types)
@@ -67,7 +69,8 @@ class Concept:
       'spans': [s.to_json() for s in self.spans],
       'types': self.types,
       'cui': self.cui,
-      'candidates': [c.to_json() for c in self.candidates]
+      'candidates': [c.to_json() for c in self.candidates],
+      'embedding': self.embedding_idx
     }
 
   @property
@@ -108,7 +111,8 @@ class Sentence:
     for concept in all_concepts:
       if concept.start >= sentence_start and concept.end <= sentence_end:
         adjusted_spans = [Span(s.start - sentence_start, s.end - sentence_start, s.text) for s in concept.spans]
-        self.local_concepts.append(Concept(adjusted_spans, concept.types, concept.cui, concept.candidates))
+        self.local_concepts.append(Concept(adjusted_spans, concept.types, concept.cui, concept.candidates,
+                                           concept.embedding_idx))
     self.tokens = [t_ for t in tokens for t_ in create_tokens(t, sentence_start)]
 
   def to_json(self):
@@ -139,11 +143,15 @@ def create_tokens(spacy_token, offset):
 
 
 class Document:
-  def __init__(self, did: str, text: str, concepts: List[Concept], umls: UmlsCandidateGenerator, k):
+  def __init__(self, did: str, text: str, concepts: List[Concept], umls: UmlsCandidateGenerator, k, mention2idx):
     self.did = did
     self.text = text
     self.concepts = concepts
     self.sentences = []
+
+    # add concept embedding to each concept
+    for concept in self.concepts:
+      concept.embedding_idx = mention2idx[concept.text().strip()]
 
     # perform cui search for each concept
     batch_results = umls.batch_search([c.text() for c in self.concepts], k + 20)

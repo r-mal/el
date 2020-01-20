@@ -1,6 +1,8 @@
 from typing import List
 from pathlib import Path
 import traceback
+import json
+from tqdm import tqdm
 from hedgedog.logging import get_logger
 from hedgedog.nlp.spacy.umls import UmlsCandidateGenerator
 from hedgedog.tf.estimator.ingredients import dataset_ingredient
@@ -10,7 +12,7 @@ log = get_logger("mm.data.medmentions")
 
 
 class MedMentionsDocument(Document):
-  def __init__(self, lines: List[str], umls, k):
+  def __init__(self, lines: List[str], umls, k, mention2idx):
     did, _, title = lines[0].strip().split('|')
     text = '|'.join(lines[1].strip().split('|')[2:])
     doc_string = title + '. ' + text
@@ -23,18 +25,16 @@ class MedMentionsDocument(Document):
         end += 1
       entities.append(Concept([Span(start, end, text)], types.split(','), cui))
 
-    super().__init__(did, doc_string, entities, umls, k)
+    super().__init__(did, doc_string, entities, umls, k, mention2idx)
 
 
 @dataset_ingredient.capture
 def create_dataset(project_dir, data_dir, candidates_per_concept):
-  import json
-  from tqdm import tqdm
-
   datadir = Path(project_dir) / 'medmentions'
   bratdir = datadir / 'brat'
   jsondir = Path(data_dir)
   cui2id = json.load((Path(project_dir) / 'info' / 'cui2id.json').open('r'))
+  mention2idx = json.load((Path(project_dir) / 'info' / 'medmentions_mentions.json').open('r'))
 
   doc_ids = {}
   for line in (datadir / 'corpus_pubtator_pmids_trng.txt').open('r'):
@@ -61,7 +61,7 @@ def create_dataset(project_dir, data_dir, candidates_per_concept):
         if len(line.strip()) > 1:
           doc_lines.append(line.strip())
         else:
-          doc = MedMentionsDocument(doc_lines, umls, candidates_per_concept)
+          doc = MedMentionsDocument(doc_lines, umls, candidates_per_concept, mention2idx)
 
           # stats
           for concept in doc.concepts:
@@ -93,3 +93,19 @@ def create_dataset(project_dir, data_dir, candidates_per_concept):
   unique_with_emb = len([c for c in unique_cuis if c in cui2id])
   log.info(f"{unique_with_emb} of {len(unique_cuis)} unique cuis "
            f"have an embedding ({float(unique_with_emb) / len(unique_cuis)}")
+
+
+@dataset_ingredient.capture
+def dump_mentions(project_dir):
+  datadir = Path(project_dir) / 'medmentions'
+  mentions = set()
+
+  for line in (datadir / 'corpus_pubtator.txt').open('r'):
+    line = line.strip()
+    if len(line) > 1:
+      fields = line.split('\t')
+      if len(fields) == 6:
+        mentions.add(fields[3].strip())
+  out_file = Path(project_dir) / 'info' / 'medmentions_mentions.json'
+  log.info(f"Writing {len(mentions)} mentions to {out_file}")
+  json.dump({m: i for i, m in enumerate(mentions)}, out_file.open('w+'))
