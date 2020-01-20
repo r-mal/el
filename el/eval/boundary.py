@@ -3,10 +3,10 @@ from tqdm import tqdm
 from hedgedog.logging import get_logger
 from hedgedog.nlp.seq_tag import IOBESContinuationBoundaryAggregator
 
-from mm.eval import init_model, f1_eval
-from mm.eval.span import Span, wpid_sequence_to_string
+from el.eval import init_model, f1_eval
+from el.eval.span import Span, wpid_sequence_to_string
 
-log = get_logger("mm.eval.boundary")
+log = get_logger("el.eval.boundary")
 
 
 def boundary_eval(model_class, params):

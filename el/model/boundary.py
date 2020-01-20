@@ -7,9 +7,9 @@ from hedgedog.tf import layers as hdlayers
 from hedgedog.tf import metrics as hdmetrics
 from hedgedog.logging import get_logger
 
-from mm.config import model_ing
+from el.config import model_ing
 
-log = get_logger("mm.model.boundary")
+log = get_logger("el.model.boundary")
 
 
 class BoundaryModule(Module):

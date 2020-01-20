@@ -1,6 +1,6 @@
 from typing import List
 
-from mm.eval.span import Span
+from el.eval.span import Span
 
 
 class Example:

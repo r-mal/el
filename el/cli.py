@@ -7,16 +7,16 @@ from hedgedog.tf.io.dataset_util import inspect_tfrecords, iterate_records
 from hedgedog.tf.estimator import train as hdtrain
 from hedgedog.tf.sacred import convert_to_namespace
 
-from mm.data.dataset import NerDataset
+from el.data.dataset import NerDataset
 # noinspection PyUnresolvedReferences
-from mm import config as conf
-from mm.model.model import MTBertModel
-from mm.data import clef, medmentions
-from mm.eval.boundary import boundary_eval
-from mm.eval.entity import end_to_end_eval
+from el import config as conf
+from el.model.model import MTBertModel
+from el.data import clef, medmentions
+from el.eval.boundary import boundary_eval
+from el.eval.entity import end_to_end_eval
 
 logging.reset_handlers()
-log = logging.get_logger('mm')
+log = logging.get_logger('el')
 
 ex = Experiment(ingredients=[sampling_ingredient, dataset_ingredient, estimator_ingredient,
                              conf.model_ing, training_ingredient])

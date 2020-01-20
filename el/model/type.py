@@ -8,8 +8,8 @@ from hedgedog.tf.typing import TensorDict, TensorOrTensorDict
 from hedgedog.tf import layers as hdlayers
 from hedgedog.tf import metrics as hdmetrics
 
-from mm.config import model_ing
-from mm.model.normalization import multinomial_cross_entropy
+from el.config import model_ing
+from el.model.normalization import multinomial_cross_entropy
 
 
 class TypingModule(Module):

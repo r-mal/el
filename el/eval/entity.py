@@ -9,12 +9,12 @@ from pprint import pformat
 
 from hedgedog.logging import get_logger
 from hedgedog.nlp.spacy.umls import UmlsCandidateGenerator
-from mm.data.dataset import overlap
-from mm.eval import init_model, f1_eval
-from mm.eval.boundary import predict_boundaries
-from mm.eval.span import Span, wpid_sequence_to_string
+from el.data.dataset import overlap
+from el.eval import init_model, f1_eval
+from el.eval.boundary import predict_boundaries
+from el.eval.span import Span, wpid_sequence_to_string
 
-log = get_logger("mm.eval.entity")
+log = get_logger("el.eval.entity")
 
 
 def end_to_end_eval(model_class, params):

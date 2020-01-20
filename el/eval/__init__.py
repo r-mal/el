@@ -4,11 +4,11 @@ import tensorflow_estimator as tfe
 from hedgedog.logging import get_logger
 from hedgedog.tf.estimator import train as hdtrain
 
-from mm.eval.evaluation import Evaluation
-from mm.eval.example import Example
-from mm.eval.span import Span
+from el.eval.evaluation import Evaluation
+from el.eval.example import Example
+from el.eval.span import Span
 
-log = get_logger("mm.eval")
+log = get_logger("el.eval")
 
 
 def f1_eval(name, gold_spans, predicted_spans, sentence_texts, params):

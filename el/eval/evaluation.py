@@ -2,7 +2,7 @@ from collections import defaultdict
 from typing import Set
 from tqdm import tqdm
 
-from mm.eval.span import Span
+from el.eval.span import Span
 
 
 class Evaluation:

@@ -1,6 +1,6 @@
 from typing import Set, Tuple, List, Dict
 
-from mm.data.dataset import wp_sequence_to_string
+from el.data.dataset import wp_sequence_to_string
 
 
 class Span:

@@ -7,13 +7,13 @@ from hedgedog.tf.models.multitask_bert_model import MultitaskBertModel
 from hedgedog.tf.typing import TensorOrTensorDict
 from hedgedog.logging import get_logger
 
-from mm.data.dataset import NerDataset
-from mm.config import model_ing
-from mm.model.boundary import BoundaryModule
-from mm.model.normalization import NormalizationModule
-from mm.model.type import TypingModule, TypeEmbeddingModule
+from el.data.dataset import NerDataset
+from el.config import model_ing
+from el.model.boundary import BoundaryModule
+from el.model.normalization import NormalizationModule
+from el.model.type import TypingModule, TypeEmbeddingModule
 
-log = get_logger("mm.model")
+log = get_logger("el.model")
 
 
 class MTBertModel(MultitaskBertModel):

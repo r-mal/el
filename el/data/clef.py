@@ -2,7 +2,7 @@ from pathlib import Path
 from hedgedog.logging import get_logger
 from hedgedog.nlp.spacy.umls import UmlsCandidateGenerator
 from hedgedog.tf.estimator.ingredients import dataset_ingredient
-from mm.data.text import Concept, Document, Span
+from el.data.text import Concept, Document, Span
 import json
 from tqdm import tqdm
 import traceback
