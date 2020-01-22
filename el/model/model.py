@@ -12,6 +12,7 @@ from el.config import model_ing
 from el.model.boundary import BoundaryModule
 from el.model.normalization import NormalizationModule
 from el.model.type import TypingModule, TypeEmbeddingModule
+from el.model.cake import CakeModule
 
 log = get_logger("el.model")
 
@@ -32,6 +33,11 @@ class MTBertModel(MultitaskBertModel):
         'embedding': TypeEmbeddingModule
       }[hyperparameters.model.type_model]
       prediction_modules.append(type_model_cons(hyperparameters, is_training))
+    if 'cake' in hyperparameters.model.modules:
+      cake_model_cons = {
+        'basic': CakeModule
+      }[hyperparameters.model.cake_model]
+      prediction_modules.append(cake_model_cons(hyperparameters, is_training))
     assert len(prediction_modules) > 0, print(f"No valid modules in: {hyperparameters.model.modules}")
     log.info(f"Initialized MTBertModel with modules {self.module_names}")
     super().__init__(mode, hyperparameters, modules=prediction_modules, bert_model=bert_model, dataset=dataset)
@@ -42,7 +48,7 @@ class MTBertModel(MultitaskBertModel):
     if 'boundary' in self.module_names and self.params.model.boundary_weight > 0:
       metrics.append(metric_ops['boundary/f1'][0])
       ops.append(metric_ops['boundary/f1'][1])
-    if 'norm' in self.module_names and self.params.model.norm_weight > 0:
+    if ('norm' in self.module_names and self.params.model.norm_weight > 0) or 'cake' in self.module_names:
       metrics.append(metric_ops['normalization/strict_accuracy'][0])
       ops.append(metric_ops['normalization/strict_accuracy'][1])
     if 'type' in self.module_names and self.params.model.type_weight > 0 and self.params.model.type_metric is not None:

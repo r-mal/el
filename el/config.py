@@ -9,7 +9,7 @@ model_ing = Ingredient('model', ingredients=[sampling_ingredient, dataset_ingred
 def ds_config():
   batch_size = 8
   project_dir = '/home/rmm120030/working/kge_ner'
-  bert_model = 'ncbi_uncased_base'
+  bert_model = 'base_uncased'
   candidates_per_concept = 100
   dataset = 'medmentions'
   tagset = 'IOBES'
@@ -41,6 +41,8 @@ def model_config(dataset):
   modules = dataset['tasks']
   verbose_eval = False
   umls_embeddings = 'max'
+  ace_path = '/users/max/data/models/umls-embeddings/transd-distmult/transd-dm-gan-joint-ace-20'
+  cake_model = 'basic'
 
   # boundary
   boundary_weight = 1.

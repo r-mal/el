@@ -62,6 +62,7 @@ class NerDataset(FeatureDataset):
       FloatFeature('candidate_mask', [None, None], is_label=True, post_process=reshape_flat_tensor),
       FloatFeature('gold_in_candidate_mask', [None], is_label=True),
       IntFeature('boundaries', [None], is_label=True),
+      IntFeature('concept_head_idx', [None]),
       IntFeature('token_idx_mapping', [None], is_label=True),
       IntFeature('semantic_types', [None, None], post_process=reshape_flat_tensor),
       IntFeature('semtype_labels', [None, None], is_label=True, post_process=reshape_flat_tensor),
@@ -94,6 +95,7 @@ class NerDataset(FeatureDataset):
 
     # prepare boundary labels
     boundary_labels = [self.tag2id[self.tags.outside()] for _ in wptokens]
+    concept_head_idx = []
 
     for c, concept in enumerate(concepts):
       self.stats[split]["total"] += 1.
@@ -152,6 +154,8 @@ class NerDataset(FeatureDataset):
       # combine the boundary labels for each concept mention into a single sequence
       collision = False
       for i, bl in enumerate(self._create_boundary_labels(concept_token_masks[c])):
+        if bl in {self.tag2id[self.tags.begin()], self.tag2id[self.tags.single()]}:
+          concept_head_idx.append(i)
         if boundary_labels[i] == 0:
           boundary_labels[i] = bl
         elif bl != 0:
@@ -167,6 +171,11 @@ class NerDataset(FeatureDataset):
       # mention idx
       mention_embedding_idx.append(concept['embedding'])
 
+    # B = self.tag2id[self.tags.begin()]
+
+    assert len(concept_head_idx) == real_num_concepts, f'{sentence["sid"]} Does not match span counts: ' \
+                                                       f'{len(concept_head_idx)} vs {real_num_concepts}'
+
     return {
       'sentence_id': sentence['sid'],
       'num_concepts': real_num_concepts,
@@ -177,6 +186,7 @@ class NerDataset(FeatureDataset):
       'candidate_scores': candidate_scores.flatten(),
       'gold_in_candidate_mask': gold_in_candidate_mask,
       'boundaries': boundary_labels,
+      'concept_head_idx': concept_head_idx,
       'token_idx_mapping': token_idx_mapping,
       'semantic_types': semantic_types.flatten(),
       'semtype_labels': type_labels.flatten(),
