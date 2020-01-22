@@ -36,7 +36,7 @@ class TypingModule(RankingModule):
     negative_scores = graph_outputs_dict['type_probs'] * anti_labels
 
     # [b, c]
-    losses = self.scoring_fn(positive_scores, negative_scores)
+    losses = self.loss_fn(positive_scores, negative_scores, labels, anti_labels)
     # [b, c]
     concept_mask = tf.sequence_mask(graph_outputs_dict['num_concepts'], dtype=tf.float32)
 
@@ -72,27 +72,30 @@ class TypingModule(RankingModule):
     eval_metric_ops['type/avg_neg_prob'] = tf.metrics.mean(type_probs, weights=neg_labels)
     return eval_metric_ops
 
-  def pointwise_margin_loss(self, pos_scores, negative_scores):
+  # noinspection PyMethodOverriding
+  def pointwise_margin_loss(self, pos_scores, negative_scores, pmask, nmask):
     # [b, k, n]
-    rectified_scores = tf.nn.relu(negative_scores)
+    rectified_scores = tf.nn.relu(negative_scores) * nmask
     # [b, k, p]
-    rectified_scores += tf.nn.relu(self.margin - pos_scores)
+    rectified_scores += tf.nn.relu(self.margin - pos_scores) * pmask
 
     return tf.reduce_sum(rectified_scores, axis=-1)
 
-  def margin_loss(self, pos_score, negative_scores):
-    # [b, k, 1]
-    pos_scores = tf.expand_dims(pos_score, axis=-1)
-    # [b, k, c]
-    losses = tf.nn.relu(self.margin - pos_scores + negative_scores)
+  # noinspection PyMethodOverriding
+  def margin_loss(self, pos_score, negative_scores, pmask, nmask):
+    raise NotImplementedError()
+
+  # noinspection PyMethodOverriding
+  def multinomial_cross_entropy(self, positive_scores, negative_scores, pmask, nmask):
+    # [b, k, n + p]
+    exp_scores = tf.exp(tf.concat((negative_scores, positive_scores), axis=-1))
+    # [b, k, n + p]
+    mask = tf.concat((nmask, pmask), axis=-1)
+    exp_scores *= mask
     # [b, k]
-    return tf.reduce_sum(losses, axis=-1)
+    neg_logsumexp = tf.log(tf.reduce_sum(exp_scores, axis=-1))
 
-  def multinomial_cross_entropy(self, positive_scores, negative_scores):
-    candidate_scores = tf.concat((negative_scores, positive_scores), axis=-1)
-    neg_logsumexp = tf.log(tf.reduce_sum(tf.exp(candidate_scores), axis=-1))
-
-    return neg_logsumexp - positive_scores
+    return neg_logsumexp - tf.reduce_sum(positive_scores, axis=-1)
 
 
 class TypeEmbeddingModule(TypingModule):
