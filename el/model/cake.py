@@ -49,7 +49,6 @@ class CakeModule(Module):
     return tf.concat((code_embeddings, no_cui_emb), axis=0)
 
   def __call__(self, shared_representation: TensorOrTensorDict, features: TensorDict) -> TensorDict:
-    # TODO replace with bilstm indexed into concept spans
     # [b, n, d]
     contextualized_embeddings = shared_representation['contextualized_tokens']
     # s_lens = shared_representation['slens']
@@ -191,7 +190,6 @@ class CakeModule(Module):
     return eval_metrics
 
   def _calc_scores(self, graph_outputs_dict, labels):
-    # TODO replace with l2 norm energy
     # [b, c, dim]
     mention_embeddings = graph_outputs_dict['mention_embeddings']
     # [b, c, k]
