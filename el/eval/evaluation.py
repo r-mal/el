@@ -20,7 +20,7 @@ class Evaluation:
       unmatched = True
       matched_pred = None
       for prediction in sid2preds[label.sid]:
-        # if prediction in predictions:
+        # if prediction in predictions
         if self.match(label, prediction):
           self.tp += [label]
           unmatched = False
@@ -40,4 +40,7 @@ class Evaluation:
     return len(self.tp) / max(1., float(len(self.tp) + len(self.fn)))
 
   def f1(self):
-    return 2. * self.precision() * self.recall() / max(1., (self.precision() + self.recall()))
+    p = self.precision()
+    r = self.recall()
+    pr = p + r
+    return 2. * p * r / (pr if pr > 0 else 1.)

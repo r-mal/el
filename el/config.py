@@ -12,10 +12,10 @@ def ds_config():
   bert_model = 'ncbi_uncased_base'
   candidates_per_concept = 100
   dataset = 'medmentions'
-  tagset = 'IOB'
+  tagset = 'IOBES'
   tasks = ['boundary', 'norm', 'type']
   ignore_sentences_without_concepts = False
-  record_dir_name = 'iob.tf-records'
+  record_dir_name = None  # inferred from tagset
 
 
 # noinspection PyUnusedLocal
@@ -26,7 +26,7 @@ def es_config(dataset):
   boundary_ckpt = None
   norm_run = None
   norm_ckpt = None
-  vram_allocation_strategy = 'dynamic'
+  vram_allocation_strategy = 'unlimited'
 
   early_stopping = 'no-increase'
   metric_name = 'aggregate_metric'
@@ -44,6 +44,8 @@ def model_config(dataset):
 
   # boundary
   boundary_weight = 1.
+  use_bilstm = False
+  thiccness = 0
 
   # norm
   norm_weight = 1.
@@ -51,11 +53,12 @@ def model_config(dataset):
   embedding_size = 50
   activation = 'gelu'
   scoring_fn = 'cos'
-  norm_loss_fn = 'multinomial_ce'
+  norm_loss_fn = 'margin_loss'
   margin = 1.0
   learn_concept_embeddings = False
   use_string_sim = True
   informed_score_weighting = False
+  offline_emb_strat = 'score'
 
   # type
   type_weight = 0.1
@@ -64,7 +67,7 @@ def model_config(dataset):
   type_activation = 'sigmoid'
   type_metric = None
   eval_thresholds = [0.6, 0.7, 0.8, 0.9]
-  separate_type_embedding = False
+  separate_type_embedding = True
 
 
 # noinspection PyUnusedLocal
@@ -80,6 +83,7 @@ def ds_config_hook(config, command_name, logger):
   ds = config['dataset']
   ds['ignore_sentences_without_concepts'] = 'boundary' not in ds['tasks']
   ds['data_dir'] = os.path.join(ds['project_dir'], f"{ds['dataset']}_dataset")
+  ds['record_dir_name'] = f"{ds['tagset'].lower()}.tf-records"
   return dataset_config_hook(config, command_name, logger)
 
 

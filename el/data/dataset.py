@@ -17,7 +17,7 @@ log = get_logger("mm.data.dataset")
 class NerDataset(FeatureDataset):
   @dataset_ingredient.capture
   def __init__(self, data_dir: str, batch_size: int, bert_model: str, project_dir: str, candidates_per_concept: int,
-               record_dir_name: str, tagset, ignore_sentences_without_concepts):
+               record_dir_name: str, tagset, ignore_sentences_without_concepts, dataset):
     super().__init__(data_dir, batch_size)
     info_dir = Path(project_dir) / 'info'
     self.wptokenizer = load_wordpiece_tokenizer(bert_model)
@@ -25,6 +25,7 @@ class NerDataset(FeatureDataset):
     self.tui2label_id = json.load((info_dir / 'tui2label.json').open())
     self.candidates_per_concept = candidates_per_concept
     self.filter = ignore_sentences_without_concepts
+    self.mention2idx = json.load((info_dir / f'{dataset}_mentions.json').open())
 
     # for umls search accuracy
     self.stats = {
@@ -63,7 +64,8 @@ class NerDataset(FeatureDataset):
       IntFeature('boundaries', [None], is_label=True),
       IntFeature('token_idx_mapping', [None], is_label=True),
       IntFeature('semantic_types', [None, None], post_process=reshape_flat_tensor),
-      IntFeature('semtype_labels', [None, None], is_label=True, post_process=reshape_flat_tensor)
+      IntFeature('semtype_labels', [None, None], is_label=True, post_process=reshape_flat_tensor),
+      IntFeature('mention_embedding_idx', [None])
     ]
 
   def _get_feature_values(self, sentence):
@@ -88,6 +90,7 @@ class NerDataset(FeatureDataset):
     gold_in_candidate_mask = np.zeros([num_concepts], dtype=float)
     semantic_types = np.zeros((num_concepts, 4), dtype=int)
     type_labels = np.zeros((num_concepts, len(self.tui2label_id)), dtype=int)
+    mention_embedding_idx = []
 
     # prepare boundary labels
     boundary_labels = [self.tag2id[self.tags.outside()] for _ in wptokens]
@@ -161,6 +164,9 @@ class NerDataset(FeatureDataset):
         semantic_types[c, idx] = self.cui2id[t]
         type_labels[c, self.tui2label_id[t]] = 1
 
+      # mention idx
+      mention_embedding_idx.append(concept['embedding'])
+
     return {
       'sentence_id': sentence['sid'],
       'num_concepts': real_num_concepts,
@@ -173,7 +179,8 @@ class NerDataset(FeatureDataset):
       'boundaries': boundary_labels,
       'token_idx_mapping': token_idx_mapping,
       'semantic_types': semantic_types.flatten(),
-      'semtype_labels': type_labels.flatten()
+      'semtype_labels': type_labels.flatten(),
+      'mention_embedding_idx': mention_embedding_idx
     }
 
   def _create_boundary_labels(self, token_mask):

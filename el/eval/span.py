@@ -1,10 +1,10 @@
-from typing import Set, Tuple, List, Dict
+from typing import Set, Tuple, List, Dict, Iterable
 
 from el.data.dataset import wp_sequence_to_string
 
 
 class Span:
-  def __init__(self, tokens_ids: Set[Tuple[int, int]], sid: str, id2wp: Dict[int, str]=None, wptokens=None, text=None, cui=None):
+  def __init__(self, tokens_ids: Iterable[Tuple[int, int]], sid: str, id2wp: Dict[int, str]=None, wptokens=None, text=None, cui=None):
     self.token_ids, self.wp_token_ids = zip(*tokens_ids)
     self.token_ids = set(self.token_ids)
     self.sid = sid
@@ -29,6 +29,19 @@ class Span:
 
   def __hash__(self):
     return hash((frozenset(self.token_ids), self.sid))
+
+  def to_dict(self):
+    return {
+      'token_ids': [int(x) for x in self.token_ids],
+      'wp_token_ids': [int(x) for x in self.wp_token_ids],
+      'sid': self.sid,
+      'text': self.text,
+      'cui': self.cui
+    }
+
+  @staticmethod
+  def from_dict(d):
+    return Span(zip(d['token_ids'], d['wp_token_ids']), d['sid'], text=d['text'], cui=d['cui'])
 
 
 def wpid_sequence_to_string(token_ids: List[int], id2wp: Dict[int, str], span: Span = None) -> str:

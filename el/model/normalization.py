@@ -1,5 +1,8 @@
+from abc import ABC
+
 import tensorflow as tf
 import numpy as np
+import os
 from hedgedog.tf.estimator.multitask import Module
 from hedgedog.tf.typing import TensorDict, TensorOrTensorDict
 from hedgedog.tf import layers as hdlayers
@@ -11,28 +14,77 @@ from el.config import model_ing
 log = get_logger("el.model.norm")
 
 
-class NormalizationModule(Module):
+class RankingModule(Module, ABC):
   @model_ing.capture
-  def __init__(self, params, is_training,
-               span_pooling_strategy: str, embedding_size: int, activation: str, scoring_fn: str,
-               norm_loss_fn: str, margin: float, learn_concept_embeddings: bool, umls_embeddings: str,
-               use_string_sim: bool, informed_score_weighting: bool):
+  def __init__(self, params, is_training, scoring_fn: str, norm_loss_fn: str, margin: float, offline_emb_strat: str,
+               offline_emb_file: str = None):
     super().__init__(params, is_training)
-    self.span_pooling_strategy = span_pooling_strategy
-    self.embedding_size = embedding_size
-    self.activation = activation
     self.margin = margin
-    self.use_string_sim = use_string_sim
     self.scoring_fn = {
       'cos': hdlayers.cos_sim,
       'dot': lambda x, y: tf.reduce_sum(x * y, axis=-1)
     }[scoring_fn]
     self.loss_fn = {
-      'multinomial_ce': multinomial_cross_entropy,
+      'multinomial_ce': self.multinomial_cross_entropy,
       'pointwise_margin_loss': self.pointwise_margin_loss,
       'margin_loss': self.margin_loss
     }[norm_loss_fn]
 
+    # offline mention embeddings
+    self.offline_emb_strat = offline_emb_strat
+    if offline_emb_strat is not None:
+      if offline_emb_file is None:
+        offline_emb_file = os.path.join(params.dataset.project_dir, 'info', f'{params.dataset.dataset}_mentions.npz')
+      with np.load(offline_emb_file) as npz:
+        offline_mention_embeddings = npz['embs']
+      self.offline_mention_embeddings = tf.Variable(offline_mention_embeddings,
+                                                    trainable=False,
+                                                    name='offline_mention_embeddings')
+      self.offline_emb_weight = tf.Variable(0.5, name='offline_match_weight')
+
+  def pointwise_margin_loss(self, pos_score, negative_scores):
+    # [b, k, c]
+    rectified_scores = tf.nn.relu(negative_scores)
+    # [b, k]
+    pos = tf.nn.relu(self.margin - pos_score)
+
+    return pos + tf.reduce_sum(rectified_scores, axis=-1)
+
+  def margin_loss(self, pos_score, negative_scores):
+    # [b, k, 1]
+    pos_scores = tf.expand_dims(pos_score, axis=-1)
+    # [b, k, c]
+    losses = tf.nn.relu(self.margin - pos_scores + negative_scores)
+    # [b, k]
+    return tf.reduce_sum(losses, axis=-1)
+
+  # noinspection PyMethodMayBeStatic
+  def multinomial_cross_entropy(self, pos_score, negative_scores):
+    """
+    Performs multinomial cross-entropy
+    - sum_p[p] + log sum_n[exp(n)]
+    :param pos_score: [b, k] tensor of scores for positive example scores
+    :param negative_scores: [b, k, n] tensor of scores for negative examples
+    :return: [b, k] loss tensor
+    """
+    # [b, k, c+1]
+    candidate_scores = tf.concat((negative_scores, tf.expand_dims(pos_score, axis=-1)), axis=-1)
+    # [b, k]
+    neg_logsumexp = tf.log(tf.reduce_sum(tf.exp(candidate_scores), axis=-1))
+    # [b, k]
+    return neg_logsumexp - pos_score
+
+
+class NormalizationModule(RankingModule):
+  @model_ing.capture
+  def __init__(self, params, is_training,
+               span_pooling_strategy: str, embedding_size: int, activation: str, learn_concept_embeddings: bool,
+               umls_embeddings: str, use_string_sim: bool, informed_score_weighting: bool):
+    super().__init__(params, is_training)
+    self.span_pooling_strategy = span_pooling_strategy
+    self.embedding_size = embedding_size
+    self.activation = activation
+    self.use_string_sim = use_string_sim
     self.code_embeddings = self._init_embeddings(params, umls_embeddings, learn_concept_embeddings)
 
     # score weights
@@ -47,13 +99,14 @@ class NormalizationModule(Module):
     log.info(f"Initialized Normalization module with {'joint' if use_string_sim else 'embedding'} similarity"
              f" and {'informed' if informed_score_weighting else 'uninformed'} score weighting")
 
+  # noinspection PyMethodMayBeStatic
   def _init_embeddings(self, params, umls_embeddings, learn_concept_embeddings):
-    import json, os
+    import json
     with np.load(os.path.join(params.dataset.project_dir, 'info', umls_embeddings, 'embeddings.npz')) as npz:
       np_code_embeddings = npz['embs']
     if learn_concept_embeddings:
       code_embeddings = tf.get_variable('umls_embeddings', shape=np_code_embeddings.shape, dtype=tf.float32,
-                                             trainable=True)
+                                        trainable=True)
     else:
       code_embeddings = tf.Variable(np_code_embeddings, trainable=False, name='umls_embeddings')
 
@@ -92,6 +145,9 @@ class NormalizationModule(Module):
     mean_pooled = hdlayers.masked_mean_pooling(concept_token_embeddings, concept_token_masks,
                                                reduction_index=2,
                                                expand_mask=False)
+    if self.offline_emb_strat == 'concat':
+      offline_embeddings = tf.nn.embedding_lookup(self.offline_mention_embeddings, features['mention_embedding_idx'])
+      mean_pooled = tf.concat((mean_pooled, offline_embeddings), axis=-1)
 
     # project into embedding space
     mention_embeddings = hdlayers.dense_with_layer_norm(mean_pooled, self.embedding_size, self.activation,
@@ -203,41 +259,19 @@ class NormalizationModule(Module):
     if self.use_string_sim:
       # [b, c, k]
       candidate_scores = labels['candidate_scores']
+      scores = (self.string_weight * candidate_scores) + (self.embedding_weight * scores)
+
+      # left in place to please the old gods
       # embedding_weight = graph_outputs_dict['embedding_weight']
       # string_weight = 1. - embedding_weight
       # scores = (string_weight * candidate_scores) + (embedding_weight * scores)
-      scores = (self.string_weight * candidate_scores) + (self.embedding_weight * scores)
+
+    if self.offline_emb_strat == 'score':
+      # [b, c, dim]
+      offline_embeddings = tf.nn.embedding_lookup(self.offline_mention_embeddings,
+                                                  graph_outputs_dict['mention_embedding_idx'])
+      offline_scores = self.scoring_fn(tf.expand_dims(offline_embeddings, axis=2),
+                                       candidate_embeddings) * candidate_mask
+      scores += self.offline_emb_weight * offline_scores
 
     return scores
-
-  def pointwise_margin_loss(self, pos_score, negative_scores):
-    # [b, k, c]
-    rectified_scores = tf.nn.relu(negative_scores)
-    # [b, k]
-    pos = tf.nn.relu(self.margin - pos_score)
-
-    return pos + tf.reduce_sum(rectified_scores, axis=-1)
-
-  def margin_loss(self, pos_score, negative_scores):
-    # [b, k, 1]
-    pos_scores = tf.expand_dims(pos_score, axis=-1)
-    # [b, k, c]
-    losses = tf.nn.relu(self.margin - pos_scores + negative_scores)
-    # [b, k]
-    return tf.reduce_sum(losses, axis=-1)
-
-
-def multinomial_cross_entropy(pos_score, negative_scores):
-  """
-  Performs multinomial cross-entropy
-  - sum_p[p] + log sum_n[exp(n)]
-  :param pos_score: [b, k] tensor of scores for positive example scores
-  :param negative_scores: [b, k, n] tensor of scores for negative examples
-  :return: [b, k] loss tensor
-  """
-  # [b, k, c+1]
-  # candidate_scores = tf.concat((negative_scores, tf.expand_dims(pos_score, axis=-1)), axis=-1)
-  # [b, k] this is essentially the maximum candidate score
-  neg_logsumexp = tf.log(tf.reduce_sum(tf.exp(negative_scores), axis=-1))
-
-  return neg_logsumexp - pos_score

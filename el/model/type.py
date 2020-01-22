@@ -3,17 +3,14 @@ from pathlib import Path
 import os
 import tensorflow as tf
 import numpy as np
-from hedgedog.tf.estimator.multitask import Module
 from hedgedog.tf.typing import TensorDict, TensorOrTensorDict
 from hedgedog.tf import layers as hdlayers
 from hedgedog.tf import metrics as hdmetrics
 
-from el.config import model_ing
-from el.model.normalization import multinomial_cross_entropy
+from el.model.normalization import RankingModule
 
 
-class TypingModule(Module):
-  @model_ing.capture
+class TypingModule(RankingModule):
   def __init__(self, params, is_training):
     super().__init__(params, is_training)
     self.tui2label_id = json.load((Path(params.dataset.project_dir) / 'info' / 'tui2label.json').open())
@@ -39,8 +36,7 @@ class TypingModule(Module):
     negative_scores = graph_outputs_dict['type_probs'] * anti_labels
 
     # [b, c]
-    losses = multinomial_cross_entropy(tf.reduce_sum(positive_scores, axis=-1),
-                                       negative_scores)
+    losses = self.scoring_fn(positive_scores, negative_scores)
     # [b, c]
     concept_mask = tf.sequence_mask(graph_outputs_dict['num_concepts'], dtype=tf.float32)
 
@@ -76,6 +72,28 @@ class TypingModule(Module):
     eval_metric_ops['type/avg_neg_prob'] = tf.metrics.mean(type_probs, weights=neg_labels)
     return eval_metric_ops
 
+  def pointwise_margin_loss(self, pos_scores, negative_scores):
+    # [b, k, n]
+    rectified_scores = tf.nn.relu(negative_scores)
+    # [b, k, p]
+    rectified_scores += tf.nn.relu(self.margin - pos_scores)
+
+    return tf.reduce_sum(rectified_scores, axis=-1)
+
+  def margin_loss(self, pos_score, negative_scores):
+    # [b, k, 1]
+    pos_scores = tf.expand_dims(pos_score, axis=-1)
+    # [b, k, c]
+    losses = tf.nn.relu(self.margin - pos_scores + negative_scores)
+    # [b, k]
+    return tf.reduce_sum(losses, axis=-1)
+
+  def multinomial_cross_entropy(self, positive_scores, negative_scores):
+    candidate_scores = tf.concat((negative_scores, positive_scores), axis=-1)
+    neg_logsumexp = tf.log(tf.reduce_sum(tf.exp(candidate_scores), axis=-1))
+
+    return neg_logsumexp - positive_scores
+
 
 class TypeEmbeddingModule(TypingModule):
   def __init__(self, params, is_training):
@@ -85,7 +103,7 @@ class TypeEmbeddingModule(TypingModule):
 
     # init type embeddings
     with np.load(os.path.join(params.dataset.project_dir, 'info',
-                              params.model.umls_embeddings, 'type_embeddings.npz')) as npz:
+                              params.model.umls_embeddings, 'type_text_embeddings.npz')) as npz:
       # [l, dim]
       self.type_embeddings = tf.Variable(npz['embs'], trainable=False, name='type_embeddings', dtype=tf.float32)
       self.embedding_dim = self.type_embeddings.shape[-1]
@@ -115,4 +133,3 @@ class TypeEmbeddingModule(TypingModule):
     features['type_probs'] = tf.matmul(mention_embeddings, type_embeddings, transpose_b=True)
 
     return features
-

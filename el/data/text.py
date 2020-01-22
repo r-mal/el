@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import List
 from string import punctuation
 from hedgedog.logging import get_logger
-from hedgedog.nlp.spacy import SpacyAnnotator
 from hedgedog.nlp.spacy.umls import UmlsCandidate, UmlsCandidateGenerator
 
 log = get_logger("mm.data.brat")
@@ -16,6 +15,7 @@ class LazySpacy:
 
   def annotate(self, text):
     if self.spacy is None:
+      from hedgedog.nlp.spacy import SpacyAnnotator
       self.spacy = SpacyAnnotator('en_core_sci_sm', 'default', ['parser'])
     return self.spacy.annotate(text)
 

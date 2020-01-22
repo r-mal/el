@@ -19,6 +19,7 @@ class MedMentionsDocument(Document):
     entities = []
     for eid, line in enumerate(lines[2:]):
       did, start, end, text, types, cui = line.strip().split('\t')
+      cui = cui.replace('UMLS:', '')
       start, end = int(start), int(end)
       if start > len(title):
         start += 1

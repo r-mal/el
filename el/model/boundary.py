@@ -14,17 +14,36 @@ log = get_logger("el.model.boundary")
 
 class BoundaryModule(Module):
   @model_ing.capture
-  def __init__(self, params, is_training, verbose_eval):
+  def __init__(self, params, is_training, verbose_eval, use_bilstm, thiccness):
     super().__init__(params, is_training)
     tags = get_tags(params.dataset.tagset)
     self.boundary2id = tags.tag2id()
     d = len(self.boundary2id)
     self.crf_params = tf.get_variable("crf_params", shape=[d, d], dtype=tf.float32)
     self.verbose_eval = verbose_eval
+    self.use_bilstm = use_bilstm
+    self.thiccness = thiccness
     log.info(f"Initialized Boundary Module with tagset: {params.dataset.tagset} {self.boundary2id}")
 
   def __call__(self, shared_representation: TensorOrTensorDict, features: TensorDict) -> TensorDict:
-    logits = hdlayers.dense_with_layer_norm(shared_representation['contextualized_tokens'],
+    contextualized_tokens = shared_representation['contextualized_tokens']
+
+    if self.thiccness > 0:
+      last_four = shared_representation['all_layers'][-self.thiccness:]
+      contextualized_tokens = tf.concat(last_four, axis=-1)
+
+    if self.use_bilstm:
+      cell_fw = tf.nn.rnn_cell.LSTMCell(hdlayers.get_shape_list(contextualized_tokens)[-1])
+      cell_bw = tf.nn.rnn_cell.LSTMCell(hdlayers.get_shape_list(contextualized_tokens)[-1])
+      # ([b, slen, dim*2], [b, slen, dim*2]) tuple
+      # noinspection PyUnresolvedReferences
+      outputs, _ = tf.compat.v1.nn.bidirectional_dynamic_rnn(cell_fw, cell_bw, contextualized_tokens,
+                                                             sequence_length=shared_representation['slens'],
+                                                             dtype=tf.float32,
+                                                             swap_memory=True)
+      contextualized_tokens = tf.concat(outputs, axis=-1)
+
+    logits = hdlayers.dense_with_layer_norm(contextualized_tokens,
                                             len(self.boundary2id))
     features['boundary_logits'] = logits
     features['slens'] = shared_representation['slens']
