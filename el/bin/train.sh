@@ -53,13 +53,35 @@ python -m el.cli train with \
 # TODO
 python -m el.cli train with \
   seed=1337 \
-  estimator.run_name='cake-10' \
+  estimator.run_name='cake-11' \
   dataset.record_dir_name='cake' \
   dataset.tasks="[cake]" \
   dataset.batch_size=12 \
   dataset.bert_model='base_uncased' \
   model.cake_loss_fn='energy_margin' \
   model.cake_margin=0.2 \
+  -m bigmem13.hlt.utdallas.edu:27017:el
+
+python -m el.cli train with \
+  seed=1337 \
+  estimator.run_name='cake-12' \
+  dataset.record_dir_name='cake' \
+  dataset.tasks="[cake]" \
+  dataset.batch_size=12 \
+  train.learning_rate=1e-4 \
+  dataset.bert_model='base_uncased' \
+  model.cake_loss_fn='energy' \
+  -m bigmem13.hlt.utdallas.edu:27017:el
+
+python -m el.cli train with \
+  seed=1337 \
+  estimator.run_name='cake-15' \
+  dataset.record_dir_name='cake' \
+  dataset.tasks="[cake,type]" \
+  dataset.batch_size=12 \
+  dataset.bert_model='ncbi_uncased_base' \
+  model.scoring_fn='energy' \
+  model.norm_loss_fn='energy_loss' \
   -m bigmem13.hlt.utdallas.edu:27017:el
 
 

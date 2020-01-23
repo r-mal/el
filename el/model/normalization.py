@@ -22,12 +22,14 @@ class RankingModule(Module, ABC):
     self.margin = margin
     self.scoring_fn = {
       'cos': hdlayers.cos_sim,
-      'dot': lambda x, y: tf.reduce_sum(x * y, axis=-1)
+      'dot': lambda x, y: tf.reduce_sum(x * y, axis=-1),
+      'energy': self.energy
     }[scoring_fn]
     self.loss_fn = {
       'multinomial_ce': self.multinomial_cross_entropy,
       'pointwise_margin_loss': self.pointwise_margin_loss,
-      'margin_loss': self.margin_loss
+      'margin_loss': self.margin_loss,
+      'energy_loss': self.energy_loss
     }[norm_loss_fn]
 
     # offline mention embeddings
@@ -74,6 +76,20 @@ class RankingModule(Module, ABC):
     # [b, k]
     return neg_logsumexp - pos_score
 
+  def energy_loss(self, pos_score, negative_scores):
+    loss = -pos_score
+    return loss
+
+  def energy(self, x, y):
+    emb_diff = x - y
+    score = tf.reduce_sum(
+      emb_diff * emb_diff,
+      axis=-1,
+      keepdims=False,
+      name='energy'
+    )
+    return -1.0 * score
+
 
 class NormalizationModule(RankingModule):
   @model_ing.capture
@@ -91,8 +107,6 @@ class NormalizationModule(RankingModule):
     self.informed_score_weighting = informed_score_weighting
     if not self.informed_score_weighting:
       with tf.variable_scope('score', reuse=tf.AUTO_REUSE):
-        # self.embedding_weight = tf.get_variable('emb_match_weight', shape=[], dtype=tf.float32)
-        # self.string_weight = tf.get_variable('str_match_weight', shape=[], dtype=tf.float32)
         self.embedding_weight = tf.Variable(0.5, name='emb_match_weight')
         self.string_weight = tf.Variable(0.5, name='str_match_weight')
 
