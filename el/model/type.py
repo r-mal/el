@@ -12,12 +12,20 @@ from el.model.normalization import RankingModule
 
 
 class TypingModule(RankingModule):
-  def __init__(self, params, is_training):
+  @model_ing.capture
+  def __init__(self, params, is_training, type_loss_fn: str):
     super().__init__(params, is_training)
     self.tui2label_id = json.load((Path(params.dataset.project_dir) / 'info' / 'tui2label.json').open())
     self.weight = params.model.type_weight
     self.activation = params.model.type_activation
     self.metric = params.model.type_metric
+    self.loss_fn = {
+      'multinomial_ce': self.multinomial_cross_entropy,
+      'multinomial_ce_prob': self.multinomial_cross_entropy_prob,
+      'pointwise_margin_loss': self.pointwise_margin_loss,
+      'margin_loss': self.margin_loss,
+      'energy_loss': self.energy_loss
+    }[type_loss_fn]
 
   def __call__(self, shared_representation: TensorOrTensorDict, features: TensorDict) -> TensorDict:
     # [b, c, l]
@@ -42,6 +50,8 @@ class TypingModule(RankingModule):
     concept_mask = tf.sequence_mask(graph_outputs_dict['num_concepts'], dtype=tf.float32)
 
     loss = tf.reduce_sum(losses * concept_mask) / tf.maximum(tf.reduce_sum(concept_mask), 1)
+    for s_loss in self.secondary_losses:
+      loss += tf.reduce_sum(s_loss * concept_mask) / tf.maximum(tf.reduce_sum(concept_mask), 1)
 
     return {"typing_loss": loss * self.weight}
 
@@ -118,23 +128,34 @@ class TypeEmbeddingModule(TypingModule):
 
   def __call__(self, shared_representation: TensorOrTensorDict, features: TensorDict) -> TensorDict:
     # [b, c, dim]
-    if self.separate_type_embedding:
-      mention_embeddings = hdlayers.dense_with_layer_norm(features['pooled_mention'],
-                                                          self.embedding_size,
-                                                          self.activation,
-                                                          drop_prob=self.drop_prob)
-    else:
-      mention_embeddings = features['mention_embeddings']
-    for dim in self.layers:
-      mention_embeddings = hdlayers.dense_with_layer_norm(mention_embeddings, dim,
-                                                          activation=self.activation,
-                                                          drop_prob=self.drop_prob)
-    # [l, dim]
-    type_embeddings = tf.nn.l2_normalize(self.type_embeddings, axis=-1)
-    # [b, c, dim]
-    mention_embeddings = tf.nn.l2_normalize(mention_embeddings, axis=-1)
+    # if self.separate_type_embedding:
+    #   mention_embeddings = hdlayers.dense_with_layer_norm(features['pooled_mention'],
+    #                                                       self.embedding_size,
+    #                                                       self.activation,
+    #                                                       drop_prob=self.drop_prob)
+    # else:
+    #   mention_embeddings = features['mention_embeddings']
+    # for dim in self.layers:
+    #   mention_embeddings = hdlayers.dense_with_layer_norm(mention_embeddings, dim,
+    #                                                       activation=self.activation,
+    #                                                       drop_prob=self.drop_prob)
+    # # [l, dim]
+    # # type_embeddings
+    # # [b, c, dim]
+    # mention_embeddings = tf.nn.l2_normalize(mention_embeddings, axis=-1)
+    concept_encodings = features['pooled_mention']
+    concept_type_embeddings = tf.layers.dense(
+      inputs=concept_encodings,
+      units=self.embedding_size,
+      activation=None,
+      name='embeddings_type'
+    )
+    embeddings_norm = tf.norm(concept_type_embeddings, ord=2, axis=-1, keepdims=True)
+    concept_type_embeddings = concept_type_embeddings / tf.maximum(embeddings_norm, 1.0)
+
+    features['type_probs'] = self.energy_with_loss(concept_type_embeddings, self.type_embeddings)
 
     # [b, c, l]
-    features['type_probs'] = tf.matmul(mention_embeddings, type_embeddings, transpose_b=True)
+    # features['type_probs'] = tf.matmul(mention_embeddings, self.type_embeddings, transpose_b=True)
 
     return features

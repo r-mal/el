@@ -65,6 +65,7 @@ def model_config(dataset):
   string_method = 'weighted_scores'
   informed_score_weighting = False
   offline_emb_strat = 'score'
+  type_loss_fn = 'multinomial_ce'
 
   # type
   type_weight = 0.1

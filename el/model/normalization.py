@@ -28,6 +28,7 @@ class RankingModule(Module, ABC):
     }[scoring_fn]
     self.loss_fn = {
       'multinomial_ce': self.multinomial_cross_entropy,
+      'multinomial_ce_prob': self.multinomial_cross_entropy_prob,
       'pointwise_margin_loss': self.pointwise_margin_loss,
       'margin_loss': self.margin_loss,
       'energy_loss': self.energy_loss
@@ -78,6 +79,13 @@ class RankingModule(Module, ABC):
     # [b, k]
     return neg_logsumexp - pos_score
 
+  # noinspection PyMethodMayBeStatic
+  def multinomial_cross_entropy_prob(self, pos_probs, negative_probs):
+    # [b, k]
+    neg_logsumexp = tf.reduce_sum(tf.log(negative_probs + 1e-12), axis=-1)
+    # [b, k]
+    return neg_logsumexp - tf.log(pos_probs + 1e-12)
+    tf.nn.sigmoid_cross_entropy_with_logits
   def energy_loss(self, pos_score, negative_scores):
     loss = -pos_score
     return loss
@@ -318,8 +326,11 @@ class NormalizationModule(RankingModule):
         likelihood_bias = self.embedding_bias
         likelihood_prob = tf.nn.softmax((likelihood_weight * likelihood_scores) + likelihood_bias, axis=-1)
 
+        # [b, c, k]
         posterior_prob = likelihood_prob * prior_prob
-
+        # [b, c, 1]
+        normalized_posterior_prob = tf.reduce_sum(posterior_prob, axis=-1, keepdims=True)
+        posterior_prob = posterior_prob / (normalized_posterior_prob + 1e-12)
         scores = posterior_prob
       else:
         raise ValueError(f'String method not found: {self.string_method}')
