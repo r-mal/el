@@ -82,13 +82,17 @@ class RankingModule(Module, ABC):
 
   def energy(self, x, y):
     emb_diff = x - y
-    score = tf.reduce_sum(
+    distance = tf.reduce_sum(
       emb_diff * emb_diff,
       axis=-1,
       keepdims=False,
       name='energy'
     )
-    return -1.0 * score
+    # d = 2 - 2cos(x,y)
+    # (d - 2)/(-2) = cos(x, y)
+    # 2-(d/2) = cos(x, y)
+    score = (2 - (0.5 * distance))
+    return score
 
 
 class NormalizationModule(RankingModule):
