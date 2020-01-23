@@ -23,7 +23,8 @@ class RankingModule(Module, ABC):
     self.scoring_fn = {
       'cos': hdlayers.cos_sim,
       'dot': lambda x, y: tf.reduce_sum(x * y, axis=-1),
-      'energy': self.energy
+      'energy': self.energy,
+      'energy_with_loss': self.energy_with_loss
     }[scoring_fn]
     self.loss_fn = {
       'multinomial_ce': self.multinomial_cross_entropy,
@@ -43,6 +44,7 @@ class RankingModule(Module, ABC):
                                                     trainable=False,
                                                     name='offline_mention_embeddings')
       self.offline_emb_weight = tf.Variable(0.5, name='offline_match_weight')
+    self.secondary_losses = []
 
   def pointwise_margin_loss(self, pos_score, negative_scores):
     # [b, k, c]
@@ -88,6 +90,21 @@ class RankingModule(Module, ABC):
       keepdims=False,
       name='energy'
     )
+    # d = 2 - 2cos(x,y)
+    # (d - 2)/(-2) = cos(x, y)
+    # 2-(d/2) = cos(x, y)
+    score = (2 - (0.5 * distance))
+    return score
+
+  def energy_with_loss(self, x, y):
+    emb_diff = x - y
+    distance = tf.reduce_sum(
+      emb_diff * emb_diff,
+      axis=-1,
+      keepdims=False,
+      name='energy'
+    )
+    self.secondary_losses.append(distance)
     # d = 2 - 2cos(x,y)
     # (d - 2)/(-2) = cos(x, y)
     # 2-(d/2) = cos(x, y)
@@ -200,6 +217,8 @@ class NormalizationModule(RankingModule):
     losses = self.loss_fn(pos_score, negative_scores)
     concept_mask = tf.sequence_mask(graph_outputs_dict['num_concepts'], dtype=tf.float32)
     loss = tf.reduce_mean(losses * concept_mask)
+    for s_loss in self.secondary_losses:
+      loss += tf.reduce_mean(s_loss * concept_mask)
 
     return {"normalization_loss": loss * self.params.model.norm_weight}
 
