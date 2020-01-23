@@ -104,7 +104,8 @@ class RankingModule(Module, ABC):
       keepdims=False,
       name='energy'
     )
-    self.secondary_losses.append(distance)
+    # only true energy, others are wrong
+    self.secondary_losses.append(distance[:, :, 0])
     # d = 2 - 2cos(x,y)
     # (d - 2)/(-2) = cos(x, y)
     # 2-(d/2) = cos(x, y)
