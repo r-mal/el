@@ -9,7 +9,6 @@ python -m el.cli train with \
   dataset.tasks="[cake]" \
   -m bigmem13.hlt.utdallas.edu:27017:el
 
-# TODO
 python -m el.cli train with \
   seed=1337 \
   estimator.run_name='cake-2' \
@@ -24,13 +23,37 @@ python -m el.cli train with \
   estimator.run_name='cake-3' \
   dataset.record_dir_name='cake' \
   dataset.tasks="[cake,type]" \
-  dataset.batch_size=12 \
-  dataset.bert_model='base_uncased' \
+  dataset.batch_size=8 \
+  dataset.bert_model='ncbi_uncased_base' \
+  model.norm_loss_fn='multinomial_ce' \
+  model.cake_loss_fn='energy' \
   -m bigmem13.hlt.utdallas.edu:27017:el
+
+# TODO
+python -m el.cli train with \
+  seed=1337 \
+  estimator.run_name='cake-4' \
+  dataset.record_dir_name='cake' \
+  dataset.tasks="[cake]" \
+  dataset.batch_size=8 \
+  dataset.bert_model='base_uncased' \
+  model.cake_loss_fn='relative_margin' \
+  -m bigmem13.hlt.utdallas.edu:27017:el
+
 
 python -m el.cli train with \
   seed=1337 \
   estimator.run_name='cake-4' \
+  dataset.record_dir_name='cake' \
+  dataset.tasks="[cake,type]" \
+  dataset.batch_size=12 \
+  dataset.bert_model='ncbi_uncased_base' \
+  train.learning_rate=5e-6 \
+  -m bigmem13.hlt.utdallas.edu:27017:el
+
+python -m el.cli train with \
+  seed=1337 \
+  estimator.run_name='cake-5' \
   dataset.record_dir_name='cake' \
   dataset.tasks="[cake,type]" \
   dataset.batch_size=12 \

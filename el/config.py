@@ -43,6 +43,8 @@ def model_config(dataset):
   umls_embeddings = 'max'
   ace_path = '/users/max/data/models/umls-embeddings/transd-distmult/transd-dm-gan-joint-ace-20'
   cake_model = 'basic'
+  cake_loss_fn = 'energy'
+  cake_margin = 0.5
 
   # boundary
   boundary_weight = 1.

@@ -27,17 +27,17 @@ class MTBertModel(MultitaskBertModel):
       prediction_modules.append(BoundaryModule(hyperparameters, is_training))
     if 'norm' in hyperparameters.model.modules:
       prediction_modules.append(NormalizationModule(hyperparameters, is_training))
+    if 'cake' in hyperparameters.model.modules:
+      cake_model_cons = {
+        'basic': CakeModule
+      }[hyperparameters.model.cake_model]
+      prediction_modules.append(cake_model_cons(hyperparameters, is_training))
     if 'type' in hyperparameters.model.modules:
       type_model_cons = {
         'simple': TypingModule,
         'embedding': TypeEmbeddingModule
       }[hyperparameters.model.type_model]
       prediction_modules.append(type_model_cons(hyperparameters, is_training))
-    if 'cake' in hyperparameters.model.modules:
-      cake_model_cons = {
-        'basic': CakeModule
-      }[hyperparameters.model.cake_model]
-      prediction_modules.append(cake_model_cons(hyperparameters, is_training))
     assert len(prediction_modules) > 0, print(f"No valid modules in: {hyperparameters.model.modules}")
     log.info(f"Initialized MTBertModel with modules {self.module_names}")
     super().__init__(mode, hyperparameters, modules=prediction_modules, bert_model=bert_model, dataset=dataset)

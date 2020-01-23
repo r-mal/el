@@ -17,7 +17,7 @@ log = get_logger("el.model.cake")
 
 class CakeModule(Module):
   @model_ing.capture
-  def __init__(self, params, is_training, umls_embeddings: str, ace_path: str):
+  def __init__(self, params, is_training, umls_embeddings: str, ace_path: str, cake_loss_fn: str, cake_margin: float):
     super().__init__(params, is_training)
     self.code_embeddings = self._init_embeddings(params, umls_embeddings)
     # half, just embs, no proj_embs
@@ -25,6 +25,8 @@ class CakeModule(Module):
     self.rnn_num_layers = 1
     self.rnn_hidden_size = 512
     self.latest_model_checkpoint = tf.train.latest_checkpoint(ace_path)
+    self.cake_loss_fn = cake_loss_fn
+    self.cake_margin = cake_margin
 
     log.info(f"Initialized CAKE module.")
 
@@ -114,32 +116,51 @@ class CakeModule(Module):
 
   def predict(self, graph_outputs_dict: TensorDict) -> TensorDict:
     if 'candidates' in graph_outputs_dict:
-      graph_outputs_dict['candidate_scores'] = self._calc_scores(graph_outputs_dict, graph_outputs_dict)
+      scores, _ = self._calc_scores(graph_outputs_dict, graph_outputs_dict)
+      graph_outputs_dict['candidate_scores'] = scores
 
     # graph_outputs_dict.__delitem__('embedding_weight')
     return graph_outputs_dict
 
   def loss(self, graph_outputs_dict: TensorDict, labels: TensorDict) -> TensorOrTensorDict:
-    scores = self._calc_scores(graph_outputs_dict, labels)
+    scores, gold_negative_scores = self._calc_scores(graph_outputs_dict, labels)
+
     pos_score = scores[:, :, 0]
     negative_scores = scores[:, :, 1:]
 
     # [b, c]
-    losses = self.loss_fn(pos_score, negative_scores)
+    losses = self.loss_fn(pos_score, negative_scores, gold_negative_scores)
     concept_mask = tf.sequence_mask(graph_outputs_dict['num_concepts'], dtype=tf.float32)
     loss = tf.reduce_mean(losses * concept_mask)
 
     return {"normalization_loss": loss}
 
-  def loss_fn(self, pos_score, negative_scores):
+  def loss_fn(self, pos_score, negative_scores, gold_negative_scores):
     # -1 * -1 * energy = energy
     # TODO consider using negative scores in the future
-    return -pos_score
+    if self.cake_loss_fn == 'energy':
+      loss = -pos_score
+    elif self.cake_loss_fn == 'margin':
+      pos_score = tf.expand_dims(pos_score, axis=-1)
+      loss = tf.nn.relu(self.cake_margin + pos_score - negative_scores)
+    elif self.cake_loss_fn == 'relative_margin':
+      # closer to gold than gold is close to other candidates
+      # [b, c, k-1]
+      # [b, c, 1]
+      pos_score = tf.expand_dims(pos_score, axis=-1)
+      loss = tf.reduce_mean(
+        tf.nn.relu(
+          -gold_negative_scores + pos_score - negative_scores
+        ),
+        axis=-1
+      )
+    else:
+      raise ValueError(f'Unknown cake loss function: {self.cake_loss_fn}')
+    return loss
 
   def eval_metrics(self, graph_outputs_dict: TensorDict, labels: TensorDict, loss: TensorOrTensorDict) -> TensorDict:
-    # pos_score, negative_scores = self._calc_scores(graph_outputs_dict, labels)
     # [b, c, k+1]
-    scores = self._calc_scores(graph_outputs_dict, labels)
+    scores, _ = self._calc_scores(graph_outputs_dict, labels)
 
     # [b, c]
     ones = tf.sequence_mask(graph_outputs_dict['num_concepts'], dtype=tf.bool)
@@ -205,7 +226,12 @@ class CakeModule(Module):
       candidate_embeddings                         # [b, c, k, dim
     ) * candidate_mask
 
-    return scores
+    # [b, c, k-1]
+    gold_negative_scores = self.scoring_fn(
+      tf.expand_dims(candidate_embeddings[:, :, 0], axis=-2), #[b, c, 1, dim]
+      candidate_embeddings[:, :, 1:]                          #[b, c, k-1, dim]
+    ) * candidate_mask[:, :, 1:]
+    return scores, gold_negative_scores
 
   def scoring_fn(self, mention_embeddings, candidate_embeddings):
     emb_diff = mention_embeddings - candidate_embeddings
