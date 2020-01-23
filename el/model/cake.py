@@ -142,7 +142,7 @@ class CakeModule(Module):
       loss = -pos_score
     elif self.cake_loss_fn == 'margin':
       pos_score = tf.expand_dims(pos_score, axis=-1)
-      loss = tf.nn.relu(self.cake_margin + pos_score - negative_scores)
+      loss = tf.nn.relu(self.cake_margin - pos_score + negative_scores)
     elif self.cake_loss_fn == 'relative_margin':
       # closer to gold than gold is close to other candidates
       # [b, c, k-1]
@@ -150,7 +150,7 @@ class CakeModule(Module):
       pos_score = tf.expand_dims(pos_score, axis=-1)
       loss = tf.reduce_mean(
         tf.nn.relu(
-          -gold_negative_scores + pos_score - negative_scores
+          gold_negative_scores - pos_score + negative_scores
         ),
         axis=-1
       )

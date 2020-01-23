@@ -32,7 +32,7 @@ python -m el.cli train with \
 # TODO
 python -m el.cli train with \
   seed=1337 \
-  estimator.run_name='cake-4' \
+  estimator.run_name='cake-5' \
   dataset.record_dir_name='cake' \
   dataset.tasks="[cake]" \
   dataset.batch_size=8 \
@@ -43,7 +43,7 @@ python -m el.cli train with \
 
 python -m el.cli train with \
   seed=1337 \
-  estimator.run_name='cake-4' \
+  estimator.run_name='cake-6' \
   dataset.record_dir_name='cake' \
   dataset.tasks="[cake,type]" \
   dataset.batch_size=12 \
@@ -53,7 +53,7 @@ python -m el.cli train with \
 
 python -m el.cli train with \
   seed=1337 \
-  estimator.run_name='cake-5' \
+  estimator.run_name='cake-7' \
   dataset.record_dir_name='cake' \
   dataset.tasks="[cake,type]" \
   dataset.batch_size=12 \
