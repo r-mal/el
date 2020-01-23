@@ -113,6 +113,7 @@ class NormalizationModule(RankingModule):
       with tf.variable_scope('score', reuse=tf.AUTO_REUSE):
         self.embedding_weight = tf.Variable(0.5, name='emb_match_weight')
         self.string_weight = tf.Variable(0.5, name='str_match_weight')
+        self.score_bias = tf.Variable(0.0, name='score_bias')
 
     log.info(f"Initialized Normalization module with {'joint' if use_string_sim else 'embedding'} similarity"
              f" and {'informed' if informed_score_weighting else 'uninformed'} score weighting")
@@ -277,7 +278,7 @@ class NormalizationModule(RankingModule):
     if self.use_string_sim:
       # [b, c, k]
       candidate_scores = labels['candidate_scores']
-      scores = (self.string_weight * candidate_scores) + (self.embedding_weight * scores)
+      scores = (self.string_weight * candidate_scores) + (self.embedding_weight * scores) + self.score_bias
 
       # left in place to please the old gods
       # embedding_weight = graph_outputs_dict['embedding_weight']

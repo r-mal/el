@@ -101,6 +101,18 @@ python -m el.cli train with \
 
 python -m el.cli train with \
   seed=1337 \
+  estimator.run_name='cake-18' \
+  dataset.record_dir_name='cake' \
+  dataset.tasks="[cake,type]" \
+  dataset.batch_size=12 \
+  dataset.bert_model='ncbi_uncased_base' \
+  model.scoring_fn='energy' \
+  model.norm_loss_fn='multinomial_ce' \
+  -m bigmem13.hlt.utdallas.edu:27017:el
+
+
+python -m el.cli train with \
+  seed=1337 \
   estimator.run_name='cake-7' \
   dataset.record_dir_name='cake' \
   dataset.tasks="[cake,type]" \
