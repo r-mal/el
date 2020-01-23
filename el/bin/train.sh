@@ -29,7 +29,6 @@ python -m el.cli train with \
   model.cake_loss_fn='energy' \
   -m bigmem13.hlt.utdallas.edu:27017:el
 
-# TODO
 python -m el.cli train with \
   seed=1337 \
   estimator.run_name='cake-6' \
@@ -40,7 +39,6 @@ python -m el.cli train with \
   model.cake_loss_fn='relative_margin' \
   -m bigmem13.hlt.utdallas.edu:27017:el
 
-
 python -m el.cli train with \
   seed=1337 \
   estimator.run_name='cake-7' \
@@ -50,6 +48,18 @@ python -m el.cli train with \
   dataset.bert_model='base_uncased' \
   model.cake_loss_fn='margin' \
   model.cake_margin=0.1 \
+  -m bigmem13.hlt.utdallas.edu:27017:el
+
+# TODO
+python -m el.cli train with \
+  seed=1337 \
+  estimator.run_name='cake-9' \
+  dataset.record_dir_name='cake' \
+  dataset.tasks="[cake]" \
+  dataset.batch_size=8 \
+  dataset.bert_model='base_uncased' \
+  model.cake_loss_fn='energy_margin' \
+  model.cake_margin=0.2 \
   -m bigmem13.hlt.utdallas.edu:27017:el
 
 
