@@ -67,13 +67,13 @@ def model_config(dataset):
 
   # type
   type_weight = 0.1
-  type_model = 'simple'
+  type_model = 'embedding'
   type_layers = []
   type_activation = 'sigmoid'
   type_metric = None
   eval_thresholds = [0.6, 0.7, 0.8, 0.9]
   separate_type_embedding = True
-
+  type_text_embeddings = 'type_text_embeddings'
 
 # noinspection PyUnusedLocal
 @training_ingredient.config

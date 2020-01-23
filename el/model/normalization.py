@@ -217,9 +217,10 @@ class NormalizationModule(RankingModule):
     # [b, c]
     losses = self.loss_fn(pos_score, negative_scores)
     concept_mask = tf.sequence_mask(graph_outputs_dict['num_concepts'], dtype=tf.float32)
-    loss = tf.reduce_mean(losses * concept_mask)
+    loss = tf.reduce_sum(losses * concept_mask) / tf.maximum(tf.reduce_sum(concept_mask), 1)
+    # loss = tf.reduce_mean(losses * concept_mask)
     for s_loss in self.secondary_losses:
-      loss += tf.reduce_mean(s_loss * concept_mask)
+      loss += tf.reduce_sum(s_loss * concept_mask) / tf.maximum(tf.reduce_sum(concept_mask), 1)
 
     return {"normalization_loss": loss * self.params.model.norm_weight}
 

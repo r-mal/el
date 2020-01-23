@@ -7,6 +7,7 @@ from hedgedog.tf.typing import TensorDict, TensorOrTensorDict
 from hedgedog.tf import layers as hdlayers
 from hedgedog.tf import metrics as hdmetrics
 
+from el.config import model_ing
 from el.model.normalization import RankingModule
 
 
@@ -99,14 +100,15 @@ class TypingModule(RankingModule):
 
 
 class TypeEmbeddingModule(TypingModule):
-  def __init__(self, params, is_training):
+  @model_ing.capture
+  def __init__(self, params, is_training, type_text_embeddings):
     super().__init__(params, is_training)
     self.separate_type_embedding = params.model.separate_type_embedding
     self.embedding_size = params.model.embedding_size
 
     # init type embeddings
     with np.load(os.path.join(params.dataset.project_dir, 'info',
-                              params.model.umls_embeddings, 'type_text_embeddings.npz')) as npz:
+                              params.model.umls_embeddings, f'{type_text_embeddings}.npz')) as npz:
       # [l, dim]
       self.type_embeddings = tf.Variable(npz['embs'], trainable=False, name='type_embeddings', dtype=tf.float32)
       self.embedding_dim = self.type_embeddings.shape[-1]
