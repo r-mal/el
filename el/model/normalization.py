@@ -132,7 +132,8 @@ class NormalizationModule(RankingModule):
       with tf.variable_scope('score', reuse=tf.AUTO_REUSE):
         self.embedding_weight = tf.Variable(0.5, name='emb_match_weight')
         self.string_weight = tf.Variable(0.5, name='str_match_weight')
-        self.score_bias = tf.Variable(0.0, name='score_bias')
+        self.embedding_bias = tf.Variable(0.0, name='score_bias')
+        self.string_bias = tf.Variable(0.0, name='score_bias')
 
     log.info(f"Initialized Normalization module with {'joint' if use_string_sim else 'embedding'} similarity"
              f" and {'informed' if informed_score_weighting else 'uninformed'} score weighting")
@@ -307,14 +308,14 @@ class NormalizationModule(RankingModule):
         # [b, c, k]
         prior_scores = labels['candidate_scores']
         prior_weight = self.string_weight
-        prior_bias = tf.Variable(0.0, name='prior_bias')
+        prior_bias = self.string_bias
         prior_prob = tf.nn.softmax((prior_weight * prior_scores) + prior_bias, axis=-1)
 
         # posterior scores
         # [b, c, k]
         likelihood_scores = scores
         likelihood_weight = self.embedding_weight
-        likelihood_bias = tf.Variable(0.0, name='likelihood_bias')
+        likelihood_bias = self.embedding_bias
         likelihood_prob = tf.nn.softmax((likelihood_weight * likelihood_scores) + likelihood_bias, axis=-1)
 
         posterior_prob = likelihood_prob * prior_prob
