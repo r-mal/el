@@ -150,7 +150,7 @@ class CakeModule(Module):
       pos_score = tf.expand_dims(pos_score, axis=-1)
       loss = tf.reduce_mean(
         tf.nn.relu(
-          gold_negative_scores - pos_score + negative_scores
+          -gold_negative_scores - pos_score + negative_scores
         ),
         axis=-1
       )
