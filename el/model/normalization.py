@@ -8,6 +8,7 @@ from hedgedog.tf.typing import TensorDict, TensorOrTensorDict
 from hedgedog.tf import layers as hdlayers
 from hedgedog.tf import metrics as hdmetrics
 from hedgedog.logging import get_logger
+import json
 
 from el.config import model_ing
 
@@ -73,19 +74,19 @@ class RankingModule(Module, ABC):
     :return: [b, k] loss tensor
     """
     # [b, k, c+1]
-    candidate_scores = tf.concat((negative_scores, tf.expand_dims(pos_score, axis=-1)), axis=-1)
+    candidate_scores = tf.concat([tf.expand_dims(pos_score, axis=-1), negative_scores], axis=-1)
     # [b, k]
-    neg_logsumexp = tf.log(tf.reduce_sum(tf.exp(candidate_scores), axis=-1))
-    # [b, k]
-    return neg_logsumexp - pos_score
+    loss = tf.losses.sparse_softmax_cross_entropy(
+      labels=0,
+      logits=candidate_scores
+    )
+    return loss
 
   # noinspection PyMethodMayBeStatic
   def multinomial_cross_entropy_prob(self, pos_probs, negative_probs):
     # [b, k]
-    neg_logsumexp = tf.reduce_sum(tf.log(negative_probs + 1e-12), axis=-1)
-    # [b, k]
-    return neg_logsumexp - tf.log(pos_probs + 1e-12)
-    tf.nn.sigmoid_cross_entropy_with_logits
+    return -tf.log(pos_probs + 1e-12)
+
   def energy_loss(self, pos_score, negative_scores):
     loss = -pos_score
     return loss
@@ -148,7 +149,6 @@ class NormalizationModule(RankingModule):
 
   # noinspection PyMethodMayBeStatic
   def _init_embeddings(self, params, umls_embeddings, learn_concept_embeddings):
-    import json
     with np.load(os.path.join(params.dataset.project_dir, 'info', umls_embeddings, 'embeddings.npz')) as npz:
       np_code_embeddings = npz['embs']
     if learn_concept_embeddings:
@@ -312,6 +312,7 @@ class NormalizationModule(RankingModule):
         candidate_scores = labels['candidate_scores']
         scores = (self.string_weight * candidate_scores) + (self.embedding_weight * scores) + self.score_bias
       elif self.string_method == 'bayesian':
+        # TODO something wrong here, probabilities never really learned.
         # prior scores
         # [b, c, k]
         prior_scores = labels['candidate_scores']
