@@ -177,43 +177,6 @@ class CakeModule(NormalizationModule):
     )
     return concept_embeddings
 
-  def _calc_scores(self, graph_outputs_dict, labels):
-    # [b, c, dim]
-    mention_embeddings = graph_outputs_dict['mention_embeddings']
-    # [b, c, k, dim]
-    candidates = labels['candidates']
-    # [b, c, k]
-    candidate_mask = labels['candidate_mask']
-    # [b, c, k, dim] where c is number of candidates
-    candidate_embeddings = tf.nn.embedding_lookup(self.code_embeddings, candidates)
-
-    # [b, c, k]
-    scores = self.scoring_fn(
-      tf.expand_dims(mention_embeddings, axis=2),  # [b, c, 1, dim],
-      candidate_embeddings                         # [b, c, k, dim
-    ) * candidate_mask
-
-    if self.use_string_sim:
-      # prior scores
-      # [b, c, k]
-      prior_scores = labels['candidate_scores']
-      prior_weight = self.string_weight
-      prior_bias = tf.Variable(0.0, name='prior_bias')
-      prior_prob = tf.nn.softmax((prior_weight * prior_scores) + prior_bias, axis=-1)
-
-      # posterior scores
-      # [b, c, k]
-      likelihood_scores = scores
-      likelihood_weight = self.embedding_weight
-      likelihood_bias = tf.Variable(0.0, name='likelihood_bias')
-      likelihood_prob = tf.nn.softmax((likelihood_weight * likelihood_scores) + likelihood_bias, axis=-1)
-
-      posterior_prob = likelihood_prob * prior_prob
-
-      scores = posterior_prob
-
-    return scores
-
 
 def rnn_encoder(input_embs, input_lengths, nrof_layers, nrof_units, rnn_type, reuse=tf.AUTO_REUSE):
   seq_output_indices = input_lengths - 1
