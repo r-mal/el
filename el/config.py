@@ -45,6 +45,7 @@ def model_config(dataset):
   cake_model = 'basic'
   cake_loss_fn = 'energy'
   cake_margin = 0.5
+  train_bert = True
 
   # boundary
   boundary_weight = 1.

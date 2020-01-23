@@ -17,12 +17,13 @@ log = get_logger("el.model.cake")
 
 class CakeModule(NormalizationModule):
   @model_ing.capture
-  def __init__(self, params, is_training, ace_path: str):
+  def __init__(self, params, is_training, ace_path: str, train_bert: bool):
     super().__init__(params, is_training)
     # half, just embs, no proj_embs
     self.embedding_size = 50
     self.rnn_num_layers = 1
     self.rnn_hidden_size = 512
+    self.train_bert = train_bert
     self.latest_model_checkpoint = tf.train.latest_checkpoint(ace_path)
 
     log.info(f"Initialized CAKE module.")
@@ -30,6 +31,8 @@ class CakeModule(NormalizationModule):
   def __call__(self, shared_representation: TensorOrTensorDict, features: TensorDict) -> TensorDict:
     # [b, n, d]
     contextualized_embeddings = shared_representation['contextualized_tokens']
+    if not self.train_bert:
+      contextualized_embeddings = tf.stop_gradient(contextualized_embeddings)
     # s_lens = shared_representation['slens']
 
     b, n, d = hdlayers.get_shape_list(contextualized_embeddings)
