@@ -117,12 +117,13 @@ class NormalizationModule(RankingModule):
   @model_ing.capture
   def __init__(self, params, is_training,
                span_pooling_strategy: str, embedding_size: int, activation: str, learn_concept_embeddings: bool,
-               umls_embeddings: str, use_string_sim: bool, informed_score_weighting: bool):
+               umls_embeddings: str, use_string_sim: bool, informed_score_weighting: bool, string_method: str):
     super().__init__(params, is_training)
     self.span_pooling_strategy = span_pooling_strategy
     self.embedding_size = embedding_size
     self.activation = activation
     self.use_string_sim = use_string_sim
+    self.string_method = string_method
     self.code_embeddings = self._init_embeddings(params, umls_embeddings, learn_concept_embeddings)
 
     # score weights
@@ -297,14 +298,30 @@ class NormalizationModule(RankingModule):
     ) * candidate_mask
 
     if self.use_string_sim:
-      # [b, c, k]
-      candidate_scores = labels['candidate_scores']
-      scores = (self.string_weight * candidate_scores) + (self.embedding_weight * scores) + self.score_bias
+      if self.string_method == 'weighted_scores':
+        # [b, c, k]
+        candidate_scores = labels['candidate_scores']
+        scores = (self.string_weight * candidate_scores) + (self.embedding_weight * scores) + self.score_bias
+      elif self.string_method == 'bayesian':
+        # prior scores
+        # [b, c, k]
+        prior_scores = labels['candidate_scores']
+        prior_weight = self.string_weight
+        prior_bias = tf.Variable(0.0, name='prior_bias')
+        prior_prob = tf.nn.softmax((prior_weight * prior_scores) + prior_bias, axis=-1)
 
-      # left in place to please the old gods
-      # embedding_weight = graph_outputs_dict['embedding_weight']
-      # string_weight = 1. - embedding_weight
-      # scores = (string_weight * candidate_scores) + (embedding_weight * scores)
+        # posterior scores
+        # [b, c, k]
+        likelihood_scores = scores
+        likelihood_weight = self.embedding_weight
+        likelihood_bias = tf.Variable(0.0, name='likelihood_bias')
+        likelihood_prob = tf.nn.softmax((likelihood_weight * likelihood_scores) + likelihood_bias, axis=-1)
+
+        posterior_prob = likelihood_prob * prior_prob
+
+        scores = posterior_prob
+      else:
+        raise ValueError(f'String method not found: {self.string_method}')
 
     if self.offline_emb_strat == 'score':
       # [b, c, dim]

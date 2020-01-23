@@ -62,6 +62,7 @@ def model_config(dataset):
   margin = 1.0
   learn_concept_embeddings = False
   use_string_sim = True
+  string_method = 'weighted_scores'
   informed_score_weighting = False
   offline_emb_strat = 'score'
 
