@@ -89,6 +89,7 @@ class RankingModule(Module, ABC):
   # noinspection PyMethodMayBeStatic
   def multinomial_cross_entropy_prob(self, pos_probs, negative_probs, labels):
     # [b, k]
+
     return -tf.log(pos_probs + 1e-12)
 
   def energy_loss(self, pos_score, negative_scores, labels):
@@ -398,7 +399,6 @@ class NormalizationModule(RankingModule):
       offline_scores = self.scoring_fn(tf.expand_dims(offline_embeddings, axis=2),
                                        candidate_embeddings) * candidate_mask
       scores += self.offline_emb_weight * offline_scores
-
 
     scores = scores * candidate_mask
     return scores

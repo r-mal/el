@@ -41,7 +41,7 @@ class NerDataset(FeatureDataset):
       with np.load(mention_candidate_path) as npz:
         self.mention_top_distances = npz['distances']
         self.mention_top_candidates = npz['candidates']
-        id2cui = {i: c for (c, i) in self.cui2id}
+        id2cui = {i: c for (c, i) in self.cui2id.items()}
         mention_candidates = {}
         for m_idx, m_cand_values in enumerate(zip(self.mention_top_candidates, self.mention_top_distances)):
           mention_candidates[m_idx] = []
