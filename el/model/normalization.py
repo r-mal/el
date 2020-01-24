@@ -341,14 +341,22 @@ class NormalizationModule(RankingModule):
         prior_scores = labels['candidate_scores']
         prior_weight = self.string_weight
         prior_bias = self.string_bias
-        prior_prob = tf.nn.softmax((prior_weight * prior_scores) + prior_bias, axis=-1)
+        # prior_prob = tf.nn.softmax((prior_weight * prior_scores) + prior_bias, axis=-1)
+        prior_logits = (prior_weight * prior_scores) + prior_bias
+        prior_energies = tf.exp(prior_logits) * candidate_mask
+        # [b, c, k]
+        prior_prob = prior_energies / (tf.reduce_sum(prior_energies, axis=-1, keepdims=True) + 1e-12)
 
         # posterior scores
         # [b, c, k]
         likelihood_scores = scores
         likelihood_weight = self.embedding_weight
         likelihood_bias = self.embedding_bias
-        likelihood_prob = tf.nn.softmax((likelihood_weight * likelihood_scores) + likelihood_bias, axis=-1)
+        # likelihood_prob = tf.nn.softmax(, axis=-1)
+        likelihood_logits = (likelihood_weight * likelihood_scores) + likelihood_bias
+        likelihood_energies = tf.exp(likelihood_logits) * candidate_mask
+        # [b, c, k]
+        likelihood_prob = likelihood_energies / (tf.reduce_sum(likelihood_energies, axis=-1, keepdims=True) + 1e-12)
 
         # [b, c, k]
         posterior_prob = likelihood_prob * prior_prob
@@ -361,14 +369,14 @@ class NormalizationModule(RankingModule):
         prior_scores = labels['candidate_scores']
         prior_weight = self.string_weight
         prior_bias = self.string_bias
-        prior_energies = tf.exp((prior_weight * prior_scores) + prior_bias)
+        prior_energies = tf.exp((prior_weight * prior_scores) + prior_bias) * candidate_mask
 
         # posterior scores
         # [b, c, k]
         likelihood_scores = scores
         likelihood_weight = self.embedding_weight
         likelihood_bias = self.embedding_bias
-        likelihood_energies = tf.exp((likelihood_weight * likelihood_scores) + likelihood_bias)
+        likelihood_energies = tf.exp((likelihood_weight * likelihood_scores) + likelihood_bias) * candidate_mask
 
         # [b, k]
         normalization_term = tf.reduce_sum(prior_energies, axis=-1, keepdims=True)
