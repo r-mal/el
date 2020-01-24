@@ -30,16 +30,18 @@ python -m el.cli train with \
   model.type_loss_fn='multinomial_ce' \
   -m bigmem13.hlt.utdallas.edu:27017:el
 
+
 python -m el.cli train with \
   seed=1337 \
-  estimator.run_name='cake-37' \
+  estimator.run_name='cake-38' \
   dataset.record_dir_name='cake_cls_sep' \
   dataset.tasks="[cake]" \
   dataset.batch_size=12 \
   train.learning_rate=1e-4 \
+  train.gradient_clip=1.0 \
   dataset.bert_model='pubmed_uncased_base' \
-  model.scoring_fn='energy_with_loss' \
-  model.string_method='bayesian' \
+  model.scoring_fn='energy' \
+  model.string_method='mixture' \
   model.norm_loss_fn='multinomial_ce_prob' \
   model.type_loss_fn='multinomial_ce' \
   -m bigmem13.hlt.utdallas.edu:27017:el
