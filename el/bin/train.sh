@@ -46,18 +46,20 @@ python -m el.cli train with \
 
 python -m el.cli train with \
   seed=1337 \
-  estimator.run_name='cake-45' \
+  estimator.run_name='cake-47' \
   dataset.record_dir_name='cake_cls_sep' \
-  dataset.tasks="[cake]" \
+  dataset.tasks="[boundary,cake]" \
   dataset.batch_size=12 \
-  train.learning_rate=1e-4 \
+  train.learning_rate=5e-5 \
   train.gradient_clip=1.0 \
   dataset.bert_model='ncbi_uncased_base' \
   model.scoring_fn='energy' \
+  model.offline_emb_strat='score' \
   model.use_string_sim=True \
-  model.string_method='bayesian' \
-  model.norm_loss_fn='multinomial_ce_prob' \
-  model.train_bert=False \
+  model.string_method='weighted_scores' \
+  model.norm_loss_fn='multinomial_ce' \
+  model.type_loss_fn='multinomial_ce' \
+  model.train_bert=True \
   -m bigmem13.hlt.utdallas.edu:27017:el
 
 

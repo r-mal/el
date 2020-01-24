@@ -302,8 +302,13 @@ class NormalizationModule(RankingModule):
       'normalization/avg_max_neg_score': tf.metrics.mean(maximum_negative_score, weights=ones),
       # 'normalization/mean_emb_weight': tf.metrics.mean(graph_outputs_dict['embedding_weight']),
       'normalization/str_weight': tf.metrics.mean(self.string_weight),
-      'normalization/emb_weight': tf.metrics.mean(self.embedding_weight)
+      'normalization/string_bias': tf.metrics.mean(self.string_bias),
+      'normalization/emb_weight': tf.metrics.mean(self.embedding_weight),
+      'normalization/embedding_bias': tf.metrics.mean(self.embedding_bias),
     }
+
+    if self.offline_emb_strat is not None:
+      eval_metrics['normalization/offline_emb_weight'] = self.offline_emb_weight
 
     for secondary_loss_name in self.secondary_losses.keys():
       eval_metrics[secondary_loss_name] = tf.metrics.mean(loss[secondary_loss_name])
