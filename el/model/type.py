@@ -93,8 +93,19 @@ class TypingModule(RankingModule):
     return tf.reduce_sum(rectified_scores, axis=-1)
 
   # noinspection PyMethodOverriding
-  def margin_loss(self, pos_score, negative_scores, pmask, nmask):
-    raise NotImplementedError()
+  def margin_loss(self, pos_scores, negative_scores, pmask, nmask):
+    # [b, k, p, 1]
+    pos_scores = tf.expand_dims(pos_scores, axis=-1)
+    pmask = tf.expand_dims(pmask, axis=-1)
+    # [b, k, 1, n]
+    negative_scores = tf.expand_dims(negative_scores, axis=-2)
+    nmask = tf.expand_dims(nmask, axis=-2)
+    # [b, k, p, n]
+    losses = tf.nn.relu(self.margin - pos_scores + negative_scores) * pmask * nmask
+    # [b, k]
+    return tf.reduce_mean(tf.reduce_sum(losses, axis=-1), axis=-1)
+
+
 
   # noinspection PyMethodOverriding
   def multinomial_cross_entropy(self, positive_scores, negative_scores, pmask, nmask):
