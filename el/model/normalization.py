@@ -64,6 +64,7 @@ class RankingModule(Module, ABC):
     # [b, k]
     return tf.reduce_sum(losses, axis=-1)
 
+
   # noinspection PyMethodMayBeStatic
   def multinomial_cross_entropy(self, pos_score, negative_scores):
     """
@@ -230,6 +231,7 @@ class NormalizationModule(RankingModule):
     # TODO split these losses up so its easier to monitor
     losses = self.loss_fn(pos_score, negative_scores)
     concept_mask = tf.sequence_mask(graph_outputs_dict['num_concepts'], dtype=tf.float32)
+    # TODO figure out if I should avg across sentences or just do this where every concept contributes equally
     loss = tf.reduce_sum(losses * concept_mask) / tf.maximum(tf.reduce_sum(concept_mask), 1)
     loss_collection = {
       "normalization_loss": loss * self.params.model.norm_weight
@@ -248,7 +250,6 @@ class NormalizationModule(RankingModule):
 
     # [b, c]
     ones = tf.sequence_mask(graph_outputs_dict['num_concepts'], dtype=tf.bool)
-    maximum_negative_score = tf.reduce_max(scores[:, :, 1:], axis=-1)
     # correct_predictions = tf.greater(pos_score, maximum_negative_score)
     max_idx = tf.argmax(scores, axis=-1)
     correct_predictions = tf.equal(max_idx, 0)
@@ -277,13 +278,23 @@ class NormalizationModule(RankingModule):
                                               predictions=correct_predictions,
                                               weights=labels['gold_in_candidate_mask'])
 
+    # [bsize, c]
+    maximum_negative_score = tf.reduce_max(scores[:, :, 1:], axis=-1)
+    # [bsize]
+    maximum_negative_score = tf.reduce_sum(maximum_negative_score, axis=-1) / tf.maximum(graph_outputs_dict['num_concepts'], 1)
+
+    # [bsize]
+    avg_pos_score = tf.reduce_sum(scores[:, :, 0], axis=-1) / tf.maximum(graph_outputs_dict['num_concepts'], 1)
+    neg_count = tf.reduce_sum(labels['candidate_mask'][:, :, 1:], axis=-1)
+    # [bsize]
+    avg_neg_score = tf.reduce_sum(scores[:, :, 1:], axis=-1) / tf.maximum(neg_count, 1)
     eval_metrics = {
       self.params.model.norm_loss_fn: tf.metrics.mean(loss['normalization_loss']),
       'normalization/accuracy': accuracy,
       'normalization/normalized_accuracy': normalized_accuracy,
       'normalization/strict_accuracy': strict_accuracy,
-      'normalization/avg_pos_score': tf.metrics.mean(scores[:, :, 0]),
-      'normalization/avg_neg_score': tf.metrics.mean(scores[:, :, 1:]),
+      'normalization/avg_pos_score': tf.metrics.mean(avg_pos_score),
+      'normalization/avg_neg_score': tf.metrics.mean(avg_neg_score),
       'normalization/avg_max_neg_score': tf.metrics.mean(maximum_negative_score),
       # 'normalization/mean_emb_weight': tf.metrics.mean(graph_outputs_dict['embedding_weight']),
       'normalization/str_weight': tf.metrics.mean(self.string_weight),
@@ -314,7 +325,7 @@ class NormalizationModule(RankingModule):
     scores = self.scoring_fn(
       tf.expand_dims(mention_embeddings, axis=2),  # [b, c, 1, dim],
       candidate_embeddings                         # [b, c, k, dim
-    ) * candidate_mask
+    )
 
     if self.use_string_sim:
       if self.string_method == 'weighted_scores':
@@ -366,7 +377,6 @@ class NormalizationModule(RankingModule):
         # [b, c, 1]
         scores = posterior_prob
 
-
       else:
         raise ValueError(f'String method not found: {self.string_method}')
 
@@ -378,4 +388,6 @@ class NormalizationModule(RankingModule):
                                        candidate_embeddings) * candidate_mask
       scores += self.offline_emb_weight * offline_scores
 
+
+    scores = scores * candidate_mask
     return scores

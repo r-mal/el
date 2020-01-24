@@ -17,7 +17,7 @@ log = get_logger("mm.data.dataset")
 class NerDataset(FeatureDataset):
   @dataset_ingredient.capture
   def __init__(self, data_dir: str, batch_size: int, bert_model: str, project_dir: str, candidates_per_concept: int,
-               record_dir_name: str, tagset, ignore_sentences_without_concepts, dataset):
+               record_dir_name: str, tagset, ignore_sentences_without_concepts, dataset, mention_candidate_path):
     super().__init__(data_dir, batch_size)
     info_dir = Path(project_dir) / 'info'
     self.wptokenizer = load_wordpiece_tokenizer(bert_model)
@@ -37,7 +37,23 @@ class NerDataset(FeatureDataset):
     self.tags = get_tags(tagset)
     self.tag2id = self.tags.tag2id()
     self._umls = None
-
+    if mention_candidate_path is not None:
+      with np.load(mention_candidate_path) as npz:
+        self.mention_top_distances = npz['distances']
+        self.mention_top_candidates = npz['candidates']
+        id2cui = {i: c for (c, i) in self.cui2id}
+        mention_candidates = {}
+        for m_idx, m_cand_values in enumerate(zip(self.mention_top_candidates, self.mention_top_distances)):
+          mention_candidates[m_idx] = []
+          for m_cid, m_cdist in m_cand_values:
+            candidate = {
+              'code': id2cui[m_cid],
+              'score': (2.0 - (0.5 * m_cdist))
+            }
+            mention_candidates[m_idx].append(candidate)
+        self.mention_candidates = mention_candidates
+    else:
+      self.mention_candidates = None
     log.info(f"Initialized dataset with tags {tagset} at {data_dir}")
 
   @property
@@ -100,12 +116,16 @@ class NerDataset(FeatureDataset):
     for c, concept in enumerate(concepts):
       self.stats[split]["total"] += 1.
 
+      if self.mention_candidates is not None:
+        candidate_list = self.mention_candidates[concept['embedding']]
+      else:
+        candidate_list = concept['candidates']
       # normalization labels
       candidates = [self.cui2id[concept['cui']]]
       scores = [0.]
       gold_cui_rank = -1
       gold_cui_in_candidates = False
-      for idx, candidate in enumerate(concept['candidates']):
+      for idx, candidate in enumerate(candidate_list):
         if candidate['code'] == concept['cui']:
           scores[0] = candidate['score']
           gold_cui_in_candidates = True
@@ -114,7 +134,7 @@ class NerDataset(FeatureDataset):
         elif candidate['code'] in self.cui2id:
           candidates.append(self.cui2id[candidate['code']])
           scores.append(candidate['score'])
-      best_guess = concept['candidates'][0]['code'] if len(concept['candidates']) > 0 else 'CUI-less'
+      best_guess = candidate_list[0]['code'] if len(candidate_list) > 0 else 'CUI-less'
       # trim candidates/scores
       candidates = candidates[:self.candidates_per_concept]
       scores = scores[:self.candidates_per_concept]
@@ -171,7 +191,10 @@ class NerDataset(FeatureDataset):
         type_labels[c, self.tui2label_id[t]] = 1
 
       # mention idx
-      mention_embedding_idx.append(concept['embedding'])
+      mention_idx = concept['embedding']
+
+      mention_embedding_idx.append(mention_idx)
+
 
     # B = self.tag2id[self.tags.begin()]
 

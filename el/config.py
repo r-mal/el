@@ -17,6 +17,8 @@ def ds_config():
   ignore_sentences_without_concepts = False
   # record_dir_name = None  # inferred from tagset
   record_dir_name = 'cake_cls_sep'
+  # mention_candidate_path = '/users/rmm120030/working/kge_ner/info/knn-emb.npz'
+  mention_candidate_path = None
 
 
 # noinspection PyUnusedLocal
