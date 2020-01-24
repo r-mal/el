@@ -74,12 +74,11 @@ class RankingModule(Module, ABC):
     :return: [b, k] loss tensor
     """
     # [b, k, c+1]
-    candidate_scores = tf.concat([tf.expand_dims(pos_score, axis=-1), negative_scores], axis=-1)
+    candidate_scores = tf.concat((negative_scores, tf.expand_dims(pos_score, axis=-1)), axis=-1)
     # [b, k]
-    loss = tf.losses.sparse_softmax_cross_entropy(
-      labels=0,
-      logits=candidate_scores
-    )
+    neg_logsumexp = tf.log(tf.reduce_sum(tf.exp(candidate_scores), axis=-1))
+    # [b, k]
+    loss = neg_logsumexp - pos_score
     return loss
 
   # noinspection PyMethodMayBeStatic
@@ -159,6 +158,9 @@ class NormalizationModule(RankingModule):
 
     code2id = json.load(open(os.path.join(params.dataset.project_dir, 'info', 'cui2id.json')))
     num_learnable_codes = len(code2id) - np_code_embeddings.shape[0]
+
+    log.warning(f'{num_learnable_codes} Learnable concepts added to embeddings. '
+                f'{len(code2id)} vs {np_code_embeddings.shape[0]}')
 
     # pop a quick 'NO CUI' embedding on the matrix
     mean = np.mean(np_code_embeddings)
@@ -310,7 +312,7 @@ class NormalizationModule(RankingModule):
       if self.string_method == 'weighted_scores':
         # [b, c, k]
         candidate_scores = labels['candidate_scores']
-        scores = (self.string_weight * candidate_scores) + (self.embedding_weight * scores) + self.score_bias
+        scores = (self.string_weight * candidate_scores) + (self.embedding_weight * scores) + self.string_bias
       elif self.string_method == 'bayesian':
         # TODO something wrong here, probabilities never really learned.
         # prior scores
