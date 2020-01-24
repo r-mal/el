@@ -87,7 +87,7 @@ class CakeModule(NormalizationModule):
     )
     rnn_pooled = tf.reshape(
       concept_encodings,
-      shape=[b, c, tf.shape(concept_encodings)[-1]]
+      shape=[b, c, concept_encodings.get_shape()[-1]]
     )
 
     features['pooled_mention'] = rnn_pooled
