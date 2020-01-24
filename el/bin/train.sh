@@ -46,7 +46,7 @@ python -m el.cli train with \
 
 python -m el.cli train with \
   seed=1337 \
-  estimator.run_name='cake-51' \
+  estimator.run_name='cake-52' \
   dataset.record_dir_name='cake_cls_sep_c50' \
   dataset.tasks="[cake]" \
   dataset.batch_size=12 \

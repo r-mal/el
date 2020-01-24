@@ -374,6 +374,8 @@ class NormalizationModule(RankingModule):
         # prior scores
         # [b, c, k]
         prior_scores = labels['candidate_scores']
+        # move cosine scores to strictly positive or zero for better normalization
+        prior_scores = prior_scores + 1.0
         prior_energies = prior_scores * candidate_mask
         # [b, c, k]
         prior_prob = prior_energies / (tf.reduce_sum(prior_energies, axis=-1, keepdims=True) + 1e-12)
