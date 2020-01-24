@@ -153,7 +153,7 @@ class TypeEmbeddingModule(TypingModule):
     embeddings_norm = tf.norm(concept_type_embeddings, ord=2, axis=-1, keepdims=True)
     concept_type_embeddings = concept_type_embeddings / tf.maximum(embeddings_norm, 1.0)
 
-    features['type_probs'] = self.energy_with_loss(concept_type_embeddings, self.type_embeddings)
+    features['type_probs'] = self.scoring_fn(concept_type_embeddings, self.type_embeddings)
 
     # [b, c, l]
     # features['type_probs'] = tf.matmul(mention_embeddings, self.type_embeddings, transpose_b=True)
