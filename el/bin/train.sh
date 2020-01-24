@@ -60,6 +60,22 @@ python -m el.cli train with \
   model.train_bert=True \
   -m bigmem13.hlt.utdallas.edu:27017:el
 
+python -m el.cli train with \
+  seed=1337 \
+  estimator.run_name='cake-53' \
+  dataset.record_dir_name='cake_cls_sep_c53' \
+  dataset.tasks="[cake]" \
+  dataset.batch_size=12 \
+  train.learning_rate=5e-5 \
+  train.gradient_clip=1.0 \
+  dataset.bert_model='ncbi_uncased_base' \
+  model.scoring_fn='energy_norm' \
+  model.use_string_sim=True \
+  model.string_method='exp_weighted' \
+  model.norm_loss_fn='multinomial_ce' \
+  model.train_bert=True \
+  -m bigmem13.hlt.utdallas.edu:27017:el
+
 
 python -m el.cli preprocess with \
   seed=1337 \

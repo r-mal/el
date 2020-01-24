@@ -25,6 +25,7 @@ class RankingModule(Module, ABC):
       'cos': hdlayers.cos_sim,
       'dot': lambda x, y: tf.reduce_sum(x * y, axis=-1),
       'energy': self.energy,
+      'energy_norm': self.energy_norm,
       'energy_with_loss': self.energy_with_loss
     }[scoring_fn]
     self.loss_fn = {
@@ -110,6 +111,23 @@ class RankingModule(Module, ABC):
     score = (2 - (0.5 * distance))
     return score
 
+  def energy_norm(self, x, y):
+    emb_diff = x - y
+    distance = tf.reduce_sum(
+      emb_diff * emb_diff,
+      axis=-1,
+      keepdims=False,
+      name='energy'
+    )
+    # d = 2 - 2cos(x,y)
+    # (d - 2)/(-2) = cos(x, y)
+    # 2-(d/2) = cos(x, y)
+    score = (2 - (0.5 * distance))
+    # cos(x, y) -1 to 1, so add 1 and divide by 2
+    score = (score + 1)/2
+    # this ensures our score is between 0 and 1.
+    return score
+
   def energy_with_loss(self, x, y):
     emb_diff = x - y
     distance = tf.reduce_sum(
@@ -144,8 +162,9 @@ class NormalizationModule(RankingModule):
     self.informed_score_weighting = informed_score_weighting
     if not self.informed_score_weighting:
       with tf.variable_scope('score', reuse=tf.AUTO_REUSE):
-        self.embedding_weight = tf.Variable(0.5, name='emb_match_weight')
-        self.string_weight = tf.Variable(0.5, name='str_match_weight')
+        self.embedding_weight = tf.Variable(1.0, name='emb_match_weight')
+        self.string_weight = tf.Variable(1.0, name='str_match_weight')
+        self.score_weight = tf.Variable(1.0, name='score_weight')
         self.embedding_bias = tf.Variable(0.0, name='score_bias')
         self.string_bias = tf.Variable(0.0, name='score_bias')
 
@@ -391,7 +410,16 @@ class NormalizationModule(RankingModule):
         normalized_posterior_prob = tf.reduce_sum(posterior_prob, axis=-1, keepdims=True)
         posterior_prob = posterior_prob / (normalized_posterior_prob + 1e-12)
         scores = posterior_prob
-
+      elif self.string_method == 'exp_weighted':
+        # [b, c, k]
+        candidate_scores = labels['candidate_scores']
+        # scores are from 0 to 1, where 1 is most likely top 1-2 and 50% correct.
+        # about 80% correct in top 50, so we decay score by a learned weight
+        # we also frame our score as an exponential energy from 0 to 1
+        scores = tf.log(tf.exp(self.embedding_weight * scores) + tf.exp((self.string_weight * candidate_scores)) + 1e-12)
+        # final learned scaling parameter so these scores can function as logits
+        scores = self.score_weight * scores
+        # now our score represents
       else:
         raise ValueError(f'String method not found: {self.string_method}')
 
