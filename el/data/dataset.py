@@ -103,11 +103,14 @@ class NerDataset(FeatureDataset):
       # normalization labels
       candidates = [self.cui2id[concept['cui']]]
       scores = [0.]
+      gold_cui_rank = -1
       gold_cui_in_candidates = False
-      for candidate in concept['candidates']:
+      for idx, candidate in enumerate(concept['candidates']):
         if candidate['code'] == concept['cui']:
           scores[0] = candidate['score']
           gold_cui_in_candidates = True
+          self.stats[split]["gold_rank_sum"] += idx + 1
+          self.stats[split]["gold_rank_count"] += 1
         elif candidate['code'] in self.cui2id:
           candidates.append(self.cui2id[candidate['code']])
           scores.append(candidate['score'])
@@ -134,8 +137,7 @@ class NerDataset(FeatureDataset):
       
       # evaluate top guess (dev/test sets only)
       if best_guess == concept['cui']:
-        self.stats[split]["cor" \
-                          "rect"] += 1.
+        self.stats[split]["correct"] += 1.
 
       # count potential candidates
       self.stats[split]['num_candidates'] += len(candidates)
@@ -175,6 +177,24 @@ class NerDataset(FeatureDataset):
 
     assert len(concept_head_idx) == real_num_concepts, f'{sentence["sid"]} Does not match span counts: ' \
                                                        f'{len(concept_head_idx)} vs {real_num_concepts}'
+
+    # add cls and sep tokens
+    wptokens = [self.wptokenizer.vocab['[CLS]']] + wptokens + [self.wptokenizer.vocab['[SEP]']]
+    # add empty cls and sep masks
+    concept_token_masks = np.concatenate(
+      [
+        np.zeros((num_concepts, 1), dtype=float),
+        concept_token_masks,
+        np.zeros((num_concepts, 1), dtype=float)
+      ],
+      axis=-1
+    )
+    # add none cls and sep boundary labels
+    boundary_labels = [self.tag2id[self.tags.outside()]] + boundary_labels + [self.tag2id[self.tags.outside()]]
+    # add 1 for cls
+    concept_head_idx = [i+1 for i in concept_head_idx]
+    # add 1 for cls, add cls and sep
+    token_idx_mapping = [-1] + token_idx_mapping + [-1]
 
     return {
       'sentence_id': sentence['sid'],

@@ -290,6 +290,9 @@ class NormalizationModule(RankingModule):
       'normalization/emb_weight': tf.metrics.mean(self.embedding_weight)
     }
 
+    for secondary_loss_name in self.secondary_losses.keys():
+      eval_metrics[secondary_loss_name] = tf.metrics.mean(loss[secondary_loss_name])
+
     if self.params.model.verbose_eval:
       eval_metrics['total'] = total
       eval_metrics['gold_in_candidates'] = gold_in_candidates

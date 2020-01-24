@@ -17,13 +17,14 @@ log = get_logger("el.model.cake")
 
 class CakeModule(NormalizationModule):
   @model_ing.capture
-  def __init__(self, params, is_training, ace_path: str, train_bert: bool):
+  def __init__(self, params, is_training, ace_path: str, train_bert: bool, include_cls_sep: bool = True):
     super().__init__(params, is_training)
     # half, just embs, no proj_embs
     self.embedding_size = 50
     self.rnn_num_layers = 1
     self.rnn_hidden_size = 512
     self.train_bert = train_bert
+    self.include_cls_sep = include_cls_sep
     self.latest_model_checkpoint = tf.train.latest_checkpoint(ace_path)
 
     log.info(f"Initialized CAKE module.")
@@ -33,7 +34,7 @@ class CakeModule(NormalizationModule):
     contextualized_embeddings = shared_representation['contextualized_tokens']
     if not self.train_bert:
       contextualized_embeddings = tf.stop_gradient(contextualized_embeddings)
-    # s_lens = shared_representation['slens']
+    s_lens = shared_representation['slens']
 
     b, n, d = hdlayers.get_shape_list(contextualized_embeddings)
     # [b, c, n]
@@ -45,15 +46,17 @@ class CakeModule(NormalizationModule):
     # [b, c]
     concept_lengths = tf.cast(tf.reduce_sum(concept_token_masks, axis=-1), tf.int32)
 
+    # [bsize, max_num_concepts, max_concept_length, emb_size]
+    concept_context_embeddings, concept_lengths = concept_index(
+      contextualized_embeddings,
+      concept_head_idxs,
+      concept_lengths,
+      s_lens,
+      include_cls_sep=self.include_cls_sep
+    )
     max_concept_length = tf.cast(tf.reduce_max(concept_lengths), tf.int32)
     # [bsize, max_num_concepts, max_concept_length, 1]
     concept_seq_mask = tf.expand_dims(tf.sequence_mask(concept_lengths, max_concept_length, dtype=tf.float32), axis=-1)
-    # [bsize, max_num_concepts, max_concept_length, emb_size]
-    concept_context_embeddings = self._concept_index(
-      contextualized_embeddings,
-      concept_head_idxs,
-      concept_lengths
-    )
 
     # mask concept token embeddings by concept length mask
     concept_context_embeddings = concept_context_embeddings * concept_seq_mask
@@ -61,7 +64,7 @@ class CakeModule(NormalizationModule):
     with tf.variable_scope('ace_encoder'):
       with tf.variable_scope('rnn_concept_encoder', reuse=tf.AUTO_REUSE):
         # [b, c, 1024]
-        concept_encodings = self._crnn(concept_context_embeddings, concept_lengths)
+        concept_encodings = self._concept_rnn(concept_context_embeddings, concept_lengths)
 
     with tf.variable_scope('transd_embeddings'):
       with tf.variable_scope('concept_embeddings', reuse=tf.AUTO_REUSE):
@@ -94,8 +97,7 @@ class CakeModule(NormalizationModule):
     features['mention_embeddings'] = mention_embeddings
     return features
 
-
-  def _crnn(self, concept_embeddings, concept_lengths):
+  def _concept_rnn(self, concept_embeddings, concept_lengths):
     concept_lengths = tf.cast(concept_lengths, tf.int64)
     bsize = tf.shape(concept_embeddings)[0]
     max_concept_length = tf.cast(tf.reduce_max(concept_lengths), tf.int32)
@@ -153,29 +155,54 @@ class CakeModule(NormalizationModule):
     )
     return concept_head_embeddings
 
-  def _concept_index(self, contextualized_embeddings, concept_head_idxs, concept_lengths):
-    max_num_tokens = tf.shape(contextualized_embeddings)[1]
-    max_concept_length = tf.cast(tf.reduce_max(concept_lengths), tf.int32)
-    # [1, 1, max_concept_length]
-    concept_range = tf.expand_dims(tf.expand_dims(tf.range(max_concept_length, dtype=tf.int32), axis=0), axis=0)
-    # [bsize, max_num_concepts, 1]
-    # [bsize, max_num_concepts, max_concept_length]
-    concept_idxs = tf.expand_dims(tf.cast(concept_head_idxs, tf.int32), axis=-1) + concept_range
 
-    # ensure valid indices for indices outside range (will be ignored by rnn due to lengths)
-    # this can occur because max_concept_length + max concept start idx can overflow past
-    # end of sequence, so just max at end and rnn will ignore using length info
-    concept_idxs = tf.maximum(tf.minimum(concept_idxs, max_num_tokens - 1), 0)
+def concept_index(contextualized_embeddings, concept_head_idxs, concept_lengths, s_lens, include_cls_sep=True):
+  max_concept_length = tf.cast(tf.reduce_max(concept_lengths), tf.int32)
+  # [1, 1, max_concept_length]
+  concept_range = tf.expand_dims(tf.expand_dims(tf.range(max_concept_length, dtype=tf.int32), axis=0), axis=0)
+  # [bsize, max_num_concepts, 1]
+  # [bsize, max_num_concepts, max_concept_length]
+  concept_idxs = tf.expand_dims(tf.cast(concept_head_idxs, tf.int32), axis=-1) + concept_range
+  b, c, l = hdlayers.get_shape_list(concept_idxs)
 
-    # [bsize, max_num_concepts, max_concept_length, emb_size]
-    concept_embeddings = tf.gather(
-      # [bsize, num_tokens, emb_size]
-      contextualized_embeddings,
-      # [bsize, max_num_concepts, max_concept_length]
-      concept_idxs,
-      batch_dims=1
+  # ensure valid indices for indices outside range (will be ignored by rnn due to lengths)
+  # this can occur because max_concept_length + max concept start idx can overflow past
+  # end of sequence, so just max at end and rnn will ignore using length info
+  # [bsize, c, l]
+  s_len_pad = tf.tile(
+    tf.expand_dims(tf.expand_dims(s_lens - 1, axis=-1), axis=-1),
+    multiples=[1, c, l]
+  )
+  concept_idxs = tf.maximum(tf.minimum(concept_idxs, s_len_pad), 0)
+
+  if include_cls_sep:
+    # [b, c, 1]
+    cls_token_idxs = tf.zeros(shape=[b, c, 1], dtype=tf.int32)
+    # [b, c, 1]
+    sep_token_idxs = tf.tile(
+      tf.expand_dims(tf.expand_dims(s_lens - 1, axis=-1), axis=-1),
+      multiples=[1, c, 1]
     )
-    return concept_embeddings
+    # [b, c, l+2]
+    concept_idxs = tf.concat(
+      [
+        cls_token_idxs,
+        concept_idxs,
+        sep_token_idxs
+       ],
+      axis=-1
+    )
+    concept_lengths = concept_lengths + 2
+
+  # [bsize, max_num_concepts, max_concept_length, emb_size]
+  concept_embeddings = tf.gather(
+    # [bsize, num_tokens, emb_size]
+    contextualized_embeddings,
+    # [bsize, max_num_concepts, max_concept_length]
+    concept_idxs,
+    batch_dims=1
+  )
+  return concept_embeddings, concept_lengths
 
 
 def rnn_encoder(input_embs, input_lengths, nrof_layers, nrof_units, rnn_type, reuse=tf.AUTO_REUSE):

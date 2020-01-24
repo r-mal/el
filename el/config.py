@@ -15,7 +15,8 @@ def ds_config():
   tagset = 'IOBES'
   tasks = ['boundary', 'norm', 'type']
   ignore_sentences_without_concepts = False
-  record_dir_name = None  # inferred from tagset
+  # record_dir_name = None  # inferred from tagset
+  record_dir_name = 'cake_cls_sep'
 
 
 # noinspection PyUnusedLocal
@@ -90,7 +91,7 @@ def ds_config_hook(config, command_name, logger):
   ds = config['dataset']
   ds['ignore_sentences_without_concepts'] = 'boundary' not in ds['tasks']
   ds['data_dir'] = os.path.join(ds['project_dir'], f"{ds['dataset']}_dataset")
-  ds['record_dir_name'] = f"{ds['tagset'].lower()}.tf-records"
+  # ds['record_dir_name'] = f"{ds['tagset'].lower()}.tf-records"
   return dataset_config_hook(config, command_name, logger)
 
 
