@@ -48,7 +48,7 @@ class RankingModule(Module, ABC):
       self.offline_emb_weight = tf.Variable(0.5, name='offline_match_weight')
     self.secondary_losses = {}
 
-  def pointwise_margin_loss(self, pos_score, negative_scores):
+  def pointwise_margin_loss(self, pos_score, negative_scores, labels):
     # [b, k, c]
     rectified_scores = tf.nn.relu(negative_scores)
     # [b, k]
@@ -56,17 +56,21 @@ class RankingModule(Module, ABC):
 
     return pos + tf.reduce_sum(rectified_scores, axis=-1)
 
-  def margin_loss(self, pos_score, negative_scores):
+  def margin_loss(self, pos_score, negative_scores, labels):
     # [b, k, 1]
     pos_scores = tf.expand_dims(pos_score, axis=-1)
     # [b, k, c]
     losses = tf.nn.relu(self.margin - pos_scores + negative_scores)
+
+    loss_candidate_count = tf.maximum(tf.reduce_sum(labels['candidate_mask'][:, :, 1:], axis=-1), 1)
     # [b, k]
-    return tf.reduce_sum(losses, axis=-1)
+    losses = tf.reduce_sum(losses * labels['candidate_mask'][:, :, 1:], axis=-1) / loss_candidate_count
+    # [b, k]
+    return losses
 
 
   # noinspection PyMethodMayBeStatic
-  def multinomial_cross_entropy(self, pos_score, negative_scores):
+  def multinomial_cross_entropy(self, pos_score, negative_scores, labels):
     """
     Performs multinomial cross-entropy
     - sum_p[p] + log sum_n[exp(n)]
@@ -83,11 +87,11 @@ class RankingModule(Module, ABC):
     return loss
 
   # noinspection PyMethodMayBeStatic
-  def multinomial_cross_entropy_prob(self, pos_probs, negative_probs):
+  def multinomial_cross_entropy_prob(self, pos_probs, negative_probs, labels):
     # [b, k]
     return -tf.log(pos_probs + 1e-12)
 
-  def energy_loss(self, pos_score, negative_scores):
+  def energy_loss(self, pos_score, negative_scores, labels):
     loss = -pos_score
     return loss
 
@@ -229,14 +233,14 @@ class NormalizationModule(RankingModule):
 
     # [b, c]
     # TODO split these losses up so its easier to monitor
-    losses = self.loss_fn(pos_score, negative_scores)
+    losses = self.loss_fn(pos_score, negative_scores, labels)
     concept_mask = tf.sequence_mask(graph_outputs_dict['num_concepts'], dtype=tf.float32)
     # TODO figure out if I should avg across sentences or just do this where every concept contributes equally
     losses = losses * concept_mask
     # mean over actual concepts
     loss = tf.reduce_sum(losses, axis=-1) / tf.maximum(tf.reduce_sum(concept_mask, axis=-1), 1)
     # mean over batch
-    loss = tf.reduce_mean(losses)
+    loss = tf.reduce_mean(loss)
     loss_collection = {
       "normalization_loss": loss * self.params.model.norm_weight
     }
