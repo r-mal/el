@@ -43,9 +43,9 @@ class NerDataset(FeatureDataset):
         self.mention_top_candidates = npz['candidates']
         id2cui = {i: c for (c, i) in self.cui2id.items()}
         mention_candidates = {}
-        for m_idx, m_cand_values in enumerate(zip(self.mention_top_candidates, self.mention_top_distances)):
+        for m_idx, (m_cids, m_cdists) in enumerate(zip(self.mention_top_candidates, self.mention_top_distances)):
           mention_candidates[m_idx] = []
-          for m_cid, m_cdist in m_cand_values:
+          for m_cid, m_cdist in zip(m_cids, m_cdists):
             candidate = {
               'code': id2cui[m_cid],
               'score': (2.0 - (0.5 * m_cdist))
