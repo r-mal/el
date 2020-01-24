@@ -312,6 +312,9 @@ class NerDataset(FeatureDataset):
       log.info(f"  Avg number of candidates per cui: {stats['num_candidates']/stats['total']}")
       log.info(f"  Gold CUIs found in search: {stats['gold_in_candidates']/stats['total']}"
                f" ({stats['gold_in_candidates']}/{stats['total']})")
+      g_mean_rank = stats['gold_rank_sum'] / stats['gold_rank_count']
+      log.info(f"  Gold Mean Rank: {g_mean_rank}")
+
       log.info(f"  Boundary label collisions: {stats['boundary_label_collision']/stats['total']}"
                f" ({stats['boundary_label_collision']}/{stats['total']})")
       correct += stats['correct']

@@ -46,9 +46,9 @@ python -m el.cli train with \
 
 python -m el.cli train with \
   seed=1337 \
-  estimator.run_name='cake-47' \
+  estimator.run_name='cake-49' \
   dataset.record_dir_name='cake_cls_sep' \
-  dataset.tasks="[boundary,cake]" \
+  dataset.tasks="[cake,type]" \
   dataset.batch_size=12 \
   train.learning_rate=5e-5 \
   train.gradient_clip=1.0 \
@@ -73,6 +73,12 @@ python -m el.cli preprocess with \
   seed=1337 \
   dataset.record_dir_name='cake_cls_sep_c50' \
   dataset.candidates_per_concept=50
+
+python -m el.cli preprocess with \
+  seed=1337 \
+  dataset.record_dir_name='cake_cls_sep_c20' \
+  dataset.candidates_per_concept=20
+
 
 python -m el.cli train with \
   seed=1337 \
