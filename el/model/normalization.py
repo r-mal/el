@@ -46,7 +46,7 @@ class RankingModule(Module, ABC):
                                                     trainable=False,
                                                     name='offline_mention_embeddings')
       self.offline_emb_weight = tf.Variable(0.5, name='offline_match_weight')
-    self.secondary_losses = []
+    self.secondary_losses = {}
 
   def pointwise_margin_loss(self, pos_score, negative_scores):
     # [b, k, c]
@@ -113,7 +113,7 @@ class RankingModule(Module, ABC):
       name='energy'
     )
     # only true energy, others are wrong
-    self.secondary_losses.append(distance[:, :, 0])
+    self.secondary_losses['energy_loss'] = distance[:, :, 0]
     # d = 2 - 2cos(x,y)
     # (d - 2)/(-2) = cos(x, y)
     # 2-(d/2) = cos(x, y)
@@ -227,14 +227,19 @@ class NormalizationModule(RankingModule):
     negative_scores = scores[:, :, 1:]
 
     # [b, c]
+    # TODO split these losses up so its easier to monitor
     losses = self.loss_fn(pos_score, negative_scores)
     concept_mask = tf.sequence_mask(graph_outputs_dict['num_concepts'], dtype=tf.float32)
     loss = tf.reduce_sum(losses * concept_mask) / tf.maximum(tf.reduce_sum(concept_mask), 1)
-    # loss = tf.reduce_mean(losses * concept_mask)
-    for s_loss in self.secondary_losses:
-      loss += tf.reduce_sum(s_loss * concept_mask) / tf.maximum(tf.reduce_sum(concept_mask), 1)
+    loss_collection = {
+      "normalization_loss": loss * self.params.model.norm_weight
+    }
 
-    return {"normalization_loss": loss * self.params.model.norm_weight}
+    for s_loss_name, s_loss_value in self.secondary_losses.items():
+      s_loss_value = s_loss_value * self.params.model.norm_weight
+      s_loss_value = tf.reduce_sum(s_loss_value * concept_mask) / tf.maximum(tf.reduce_sum(concept_mask), 1)
+      loss_collection[s_loss_name] = s_loss_value
+    return loss_collection
 
   def eval_metrics(self, graph_outputs_dict: TensorDict, labels: TensorDict, loss: TensorOrTensorDict) -> TensorDict:
     # pos_score, negative_scores = self._calc_scores(graph_outputs_dict, labels)
