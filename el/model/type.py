@@ -103,6 +103,7 @@ class TypingModule(RankingModule):
     # [b, k, p, n]
     losses = tf.nn.relu(self.margin - pos_scores + negative_scores) * pmask * nmask
     # [b, k]
+    # TODO probably should sum then divide here
     return tf.reduce_mean(tf.reduce_sum(losses, axis=-1), axis=-1)
 
 
@@ -163,8 +164,11 @@ class TypeEmbeddingModule(TypingModule):
     )
     embeddings_norm = tf.norm(concept_type_embeddings, ord=2, axis=-1, keepdims=True)
     concept_type_embeddings = concept_type_embeddings / tf.maximum(embeddings_norm, 1.0)
-
-    features['type_probs'] = self.scoring_fn(concept_type_embeddings, self.type_embeddings)
+    # [b, c, 1, d]
+    concept_type_embeddings = tf.expand_dims(concept_type_embeddings, axis=-2)
+    # [1, 1, k, d]
+    type_embeddings = tf.expand_dims(tf.expand_dims(self.type_embeddings, axis=-0), axis=0)
+    features['type_probs'] = self.scoring_fn(concept_type_embeddings, type_embeddings)
 
     # [b, c, l]
     # features['type_probs'] = tf.matmul(mention_embeddings, self.type_embeddings, transpose_b=True)
