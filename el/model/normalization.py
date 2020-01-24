@@ -370,28 +370,24 @@ class NormalizationModule(RankingModule):
         normalized_posterior_prob = tf.reduce_sum(posterior_prob, axis=-1, keepdims=True)
         posterior_prob = posterior_prob / (normalized_posterior_prob + 1e-12)
         scores = posterior_prob
-      elif self.string_method == 'mixture':
+      elif self.string_method == 'bayesian_norm':
+        # prior scores
         # [b, c, k]
         prior_scores = labels['candidate_scores']
-        prior_weight = self.string_weight
-        prior_bias = self.string_bias
-        prior_energies = tf.exp((prior_weight * prior_scores) + prior_bias) * candidate_mask
-
-        # posterior scores
+        prior_energies = prior_scores * candidate_mask
         # [b, c, k]
-        likelihood_scores = scores
-        likelihood_weight = self.embedding_weight
-        likelihood_bias = self.embedding_bias
-        likelihood_energies = tf.exp((likelihood_weight * likelihood_scores) + likelihood_bias) * candidate_mask
+        prior_prob = prior_energies / (tf.reduce_sum(prior_energies, axis=-1, keepdims=True) + 1e-12)
 
-        # [b, k]
-        normalization_term = tf.reduce_sum(prior_energies, axis=-1, keepdims=True)
-        normalization_term += tf.reduce_sum(likelihood_energies, axis=-1, keepdims=True)
-
-        posterior_energy = likelihood_energies + prior_energies
+        # likelihood_prob = tf.nn.softmax(, axis=-1)
+        likelihood_energies = tf.exp(scores) * candidate_mask
         # [b, c, k]
-        posterior_prob = posterior_energy / (normalization_term + 1e-12)
+        likelihood_prob = likelihood_energies / (tf.reduce_sum(likelihood_energies, axis=-1, keepdims=True) + 1e-12)
+
+        # [b, c, k]
+        posterior_prob = likelihood_prob * prior_prob
         # [b, c, 1]
+        normalized_posterior_prob = tf.reduce_sum(posterior_prob, axis=-1, keepdims=True)
+        posterior_prob = posterior_prob / (normalized_posterior_prob + 1e-12)
         scores = posterior_prob
 
       else:

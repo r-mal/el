@@ -82,8 +82,9 @@ class CakeModule(NormalizationModule):
 
     # https://www.aclweb.org/anthology/P15-1067.pdf
     # normalize all lookups
-    embeddings_norm = tf.norm(concept_embeddings, ord=2, axis=-1, keepdims=True)
-    concept_embeddings = concept_embeddings / tf.maximum(embeddings_norm, 1.0)
+    # removed in v51+
+    # embeddings_norm = tf.norm(concept_embeddings, ord=2, axis=-1, keepdims=True)
+    # concept_embeddings = concept_embeddings / tf.maximum(embeddings_norm, 1.0)
     mention_embeddings = tf.reshape(
       concept_embeddings,
       shape=[b, c, self.embedding_size]
