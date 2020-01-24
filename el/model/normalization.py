@@ -232,14 +232,20 @@ class NormalizationModule(RankingModule):
     losses = self.loss_fn(pos_score, negative_scores)
     concept_mask = tf.sequence_mask(graph_outputs_dict['num_concepts'], dtype=tf.float32)
     # TODO figure out if I should avg across sentences or just do this where every concept contributes equally
-    loss = tf.reduce_sum(losses * concept_mask) / tf.maximum(tf.reduce_sum(concept_mask), 1)
+    losses = losses * concept_mask
+    # mean over actual concepts
+    loss = tf.reduce_sum(losses, axis=-1) / tf.maximum(tf.reduce_sum(concept_mask, axis=-1), 1)
+    # mean over batch
+    loss = tf.reduce_mean(losses)
     loss_collection = {
       "normalization_loss": loss * self.params.model.norm_weight
     }
 
     for s_loss_name, s_loss_value in self.secondary_losses.items():
       s_loss_value = s_loss_value * self.params.model.norm_weight
-      s_loss_value = tf.reduce_sum(s_loss_value * concept_mask) / tf.maximum(tf.reduce_sum(concept_mask), 1)
+      s_loss_value = s_loss_value * concept_mask
+      s_loss_value = tf.reduce_sum(s_loss_value, axis=-1) / tf.maximum(tf.reduce_sum(concept_mask, axis=-1), 1)
+      s_loss_value = tf.reduce_mean(s_loss_value)
       loss_collection[s_loss_name] = s_loss_value
     return loss_collection
 
@@ -280,22 +286,15 @@ class NormalizationModule(RankingModule):
 
     # [bsize, c]
     maximum_negative_score = tf.reduce_max(scores[:, :, 1:], axis=-1)
-    # [bsize]
-    maximum_negative_score = tf.reduce_sum(maximum_negative_score, axis=-1) / tf.maximum(graph_outputs_dict['num_concepts'], 1)
 
-    # [bsize]
-    avg_pos_score = tf.reduce_sum(scores[:, :, 0], axis=-1) / tf.maximum(graph_outputs_dict['num_concepts'], 1)
-    neg_count = tf.reduce_sum(labels['candidate_mask'][:, :, 1:], axis=-1)
-    # [bsize]
-    avg_neg_score = tf.reduce_sum(scores[:, :, 1:], axis=-1) / tf.maximum(neg_count, 1)
     eval_metrics = {
       self.params.model.norm_loss_fn: tf.metrics.mean(loss['normalization_loss']),
       'normalization/accuracy': accuracy,
       'normalization/normalized_accuracy': normalized_accuracy,
       'normalization/strict_accuracy': strict_accuracy,
-      'normalization/avg_pos_score': tf.metrics.mean(avg_pos_score),
-      'normalization/avg_neg_score': tf.metrics.mean(avg_neg_score),
-      'normalization/avg_max_neg_score': tf.metrics.mean(maximum_negative_score),
+      'normalization/avg_pos_score': tf.metrics.mean(scores[:, :, 0], weights=ones),
+      'normalization/avg_neg_score': tf.metrics.mean(scores[:, :, 1:], weights=labels['candidate_mask'][:, :, 1:]),
+      'normalization/avg_max_neg_score': tf.metrics.mean(maximum_negative_score, weights=ones),
       # 'normalization/mean_emb_weight': tf.metrics.mean(graph_outputs_dict['embedding_weight']),
       'normalization/str_weight': tf.metrics.mean(self.string_weight),
       'normalization/emb_weight': tf.metrics.mean(self.embedding_weight)
