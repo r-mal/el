@@ -67,16 +67,22 @@ python -m el.cli preprocess with \
   dataset.record_dir_name='cake_cls_sep_mention_candidates' \
   dataset.mention_candidate_path='/users/rmm120030/working/kge_ner/info/knn-emb.npz'
 
+python -m el.cli preprocess with \
+  seed=1337 \
+  dataset.record_dir_name='cake_cls_sep_c50' \
+  dataset.candidates_per_concept=50
+
 python -m el.cli train with \
   seed=1337 \
-  estimator.run_name='cake-39' \
+  estimator.run_name='cake-47' \
   dataset.record_dir_name='cake_cls_sep_mention_candidates' \
   dataset.tasks="[cake]" \
   dataset.batch_size=12 \
-  train.learning_rate=1e-4 \
+  train.learning_rate=5e-5 \
   train.gradient_clip=1.0 \
   dataset.bert_model='ncbi_uncased_base' \
   model.scoring_fn='energy' \
+  model.use_string_sim=True \
   model.string_method='bayesian' \
   model.norm_loss_fn='multinomial_ce_prob' \
   model.type_loss_fn='multinomial_ce' \
@@ -85,5 +91,5 @@ python -m el.cli train with \
 
 
 python -m el.cli preprocess with \
-  dataset.record_dir_name='cake' \
+  dataset.record_dir_name='clef' \
   dataset.dataset='clef'

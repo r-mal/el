@@ -134,6 +134,9 @@ class NerDataset(FeatureDataset):
         elif candidate['code'] in self.cui2id:
           candidates.append(self.cui2id[candidate['code']])
           scores.append(candidate['score'])
+        # should not count gold if not in list we will use
+        if len(candidates) >= self.candidates_per_concept:
+          break
       best_guess = candidate_list[0]['code'] if len(candidate_list) > 0 else 'CUI-less'
       # trim candidates/scores
       candidates = candidates[:self.candidates_per_concept]
